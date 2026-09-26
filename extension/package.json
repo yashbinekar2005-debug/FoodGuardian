@@ -1,0 +1,20 @@
+{
+  "name": "foodguardian-extension",
+  "version": "1.0.0",
+  "description": "FoodGuardian - E-Commerce Food Safety & Ingredient Intelligence Extension",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite build --watch",
+    "build": "vite build",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.268",
+    "@types/node": "^20.14.0",
+    "typescript": "^5.4.5",
+    "vite": "^5.2.11",
+    "vitest": "^1.6.0"
+  }
+}

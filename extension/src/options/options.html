@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FoodGuardian Settings</title>
+  <style>
+    :root {
+      --primary: #0f172a;
+      --accent: #16a34a;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --border: #e2e8f0;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 40px 20px;
+    }
+
+    .container {
+      max-width: 680px;
+      margin: 0 auto;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+      overflow: hidden;
+    }
+
+    .header {
+      padding: 24px 32px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .shield {
+      width: 32px;
+      height: 32px;
+      background: var(--accent);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-weight: 900;
+      font-size: 18px;
+    }
+
+    .title {
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .section {
+      padding: 24px 32px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .section-title {
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      color: var(--primary);
+    }
+
+    .field-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 0;
+    }
+
+    .field-info {
+      flex: 1;
+      padding-right: 20px;
+    }
+
+    .field-label {
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--primary);
+    }
+
+    .field-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    input[type="text"], select {
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 13px;
+      color: var(--text);
+      width: 240px;
+    }
+
+    input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    .footer {
+      padding: 20px 32px;
+      background: #f8fafc;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .btn {
+      padding: 9px 18px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all 0.15s;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #15803d;
+    }
+
+    .btn-secondary {
+      background: #e2e8f0;
+      color: var(--text);
+    }
+
+    .status-msg {
+      font-size: 12px;
+      color: var(--accent);
+      font-weight: 600;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <span class="shield">G</span>
+      <div>
+        <h1 class="title">FoodGuardian Extension Settings</h1>
+        <p style="font-size: 12px; color: #64748b;">Configure food safety analysis, regulatory preferences, and backend endpoints.</p>
+      </div>
+    </div>
+
+    <!-- General Settings -->
+    <div class="section">
+      <h2 class="section-title">General Preferences</h2>
+      
+      <div class="field-row">
+        <div class="field-info">
+          <div class="field-label">Enable FoodGuardian</div>
+          <div class="field-desc">Activate automatic food analysis on supported e-commerce websites.</div>
+        </div>
+        <input type="checkbox" id="setting-enabled" checked>
+      </div>
+
+      <div class="field-row">
+        <div class="field-info">
+          <div class="field-label">Auto-Analyze Product Pages</div>
+          <div class="field-desc">Inspect packaged foods automatically upon loading product details.</div>
+        </div>
+        <input type="checkbox" id="setting-auto-analyze" checked>
+      </div>
+
+      <div class="field-row">
+        <div class="field-info">
+          <div class="field-label">Preferred Jurisdiction</div>
+          <div class="field-desc">Choose which regulatory standards to highlight in comparison views.</div>
+        </div>
+        <select id="setting-jurisdiction">
+          <option value="both">Both India (FSSAI) & European Union (EU)</option>
+          <option value="IN">India (FSSAI) Primary</option>
+          <option value="EU">European Union (EU) Primary</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Backend & Network -->
+    <div class="section">
+      <h2 class="section-title">Intelligence Backend API</h2>
+      <div class="field-row">
+        <div class="field-info">
+          <div class="field-label">Backend API URL</div>
+          <div class="field-desc">FastAPI server address providing regulatory evaluation and scoring.</div>
+        </div>
+        <input type="text" id="setting-api-url" value="http://localhost:8000/api/v1">
+      </div>
+    </div>
+
+    <!-- Privacy & Data -->
+    <div class="section">
+      <h2 class="section-title">Privacy & Data Governance</h2>
+      <p style="font-size: 13px; color: #475569; margin-bottom: 12px;">
+        FoodGuardian does NOT collect browsing history, cookies, personal credentials, or payment information. Only public product specifications (name, ingredients, and nutrition facts) are transmitted to the analysis engine.
+      </p>
+      <button class="btn btn-secondary" id="btn-clear-cache">Clear Cached Analysis Data</button>
+    </div>
+
+    <div class="footer">
+      <span class="status-msg" id="status-msg">Settings saved successfully!</span>
+      <button class="btn btn-primary" id="btn-save">Save Settings</button>
+    </div>
+  </div>
+
+  <script type="module" src="./options.ts"></script>
+</body>
+</html>
