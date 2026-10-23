@@ -20,4 +20,8 @@ export class AdapterRegistry {
     }
     return this.adapters[this.adapters.length - 1];
   }
+
+  static getFallbackAdapter(): SiteAdapter {
+    return this.adapters[this.adapters.length - 1];
+  }
 }

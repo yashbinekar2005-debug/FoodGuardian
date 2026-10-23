@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     USE_REDIS_CACHE: bool = False
     CACHE_DEFAULT_TTL: int = 3600
     
+    # Ollama Local AI Model
+    OLLAMA_BASE_URL: str = "http://localhost:11434"
+    OLLAMA_MODEL: str = "llama3.2"
+    USE_OLLAMA: bool = True
+    
     # Security
     API_SECRET: str = "dev-secret-key-change-in-production-min-32-chars-long"
     JWT_SECRET: str = "dev-jwt-secret-key-change-in-production-min-32-chars-long"

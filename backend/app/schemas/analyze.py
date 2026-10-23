@@ -31,6 +31,19 @@ class RuleMetadata(BaseModel):
     scoring_version: str
 
 
+class AIPrediction(BaseModel):
+    model_name: str = "llama3.2"
+    final_verdict: str
+    health_grade: str
+    health_score: int
+    processing_level: str
+    key_concerns: List[str] = []
+    key_positives: List[str] = []
+    regulatory_duel_insight: str
+    consumer_advice: str
+    inferred_ingredients: Optional[str] = None
+
+
 class AnalyzeResponse(BaseModel):
     analysis_id: str
     product: Dict[str, Any]
@@ -43,3 +56,4 @@ class AnalyzeResponse(BaseModel):
     evidence: List[EvidenceItem]
     factors: List[ScoringFactor] = []
     rules: RuleMetadata
+    ai_prediction: Optional[AIPrediction] = None

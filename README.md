@@ -12,13 +12,13 @@
 Without requiring physical barcode scanning, FoodGuardian automatically extracts public product information, normalizes ingredients and additive codes (such as INS 330, E110, INS 621), benchmarks nutrition against WHO and FSSAI standards, and performs **category-aware regulatory comparisons between Indian and European Union standards** with complete source traceability.
 
 ### Core Capabilities
-* **Product Data Extraction**: Site adapters for Amazon, BigBasket, Blinkit, and generic JSON-LD/schema.org fallback.
+* **Multi-Level Product Data Extraction**: Site adapters for Amazon, BigBasket, Blinkit, and generic JSON-LD/schema.org fallback with recursive DOM structural inspection.
 * **Ingredient Normalization**: Tokenizes complex declarations, nested parentheses, percentages, and functional prefixes.
 * **Additive Intelligence**: Automatically identifies E-numbers, INS codes, and common chemical names with functional categories.
 * **Nutrition Profiling**: Analyzes sugars, saturated fat, sodium/salt, fiber, and protein per 100g.
 * **India vs EU Regulatory Comparison**: Factual, category-aware comparison of authorized statuses, maximum permitted levels, and mandatory warnings (e.g. EU child hyperactivity warnings for azo dyes; FSSAI synthetic colour declarations).
 * **Proprietary A–F Decision-Support Rating**: Deterministic 5-factor score (0–100) and A–F grade with complete factor breakdown.
-* **Shadow DOM Isolation**: Web Components isolated from marketplace CSS and scripts.
+* **Shadow DOM Isolation**: Web Components isolated from marketplace CSS and scripts (`<fg-rating-card>`, `<fg-analysis-panel>`).
 
 ---
 
@@ -34,13 +34,16 @@ Without requiring physical barcode scanning, FoodGuardian automatically extracts
             │                           │
             │ • Site Adapters           │
             │ • JSON-LD & DOM Extractor │
-            │ • MutationObserver Watcher│
+            │ • Active Route/DOM Watcher│
+            │ • IIFE Content Bundle     │
             └─────────────┬─────────────┘
                           │ ProductData (JSON)
                           ▼
             ┌───────────────────────────┐
             │   FastAPI Backend API     │
             │      (/api/v1/analyze)    │
+            │   • Universal CORS RegEx  │
+            │   • OPTIONS Rate Exempt   │
             └─────────────┬─────────────┘
                           │
       ┌───────────────────┼───────────────────┐
@@ -79,7 +82,22 @@ Without requiring physical barcode scanning, FoodGuardian automatically extracts
 
 ---
 
-## 3. Project Structure
+## 3. Multi-Level Extraction & Real-Website Resilience
+
+Real e-commerce platforms (Amazon, BigBasket, Blinkit) present dynamic challenges that FoodGuardian resolves across 6 distinct levels:
+
+| Level | Component | Challenge in Real E-Commerce | FoodGuardian Solution |
+| :--- | :--- | :--- | :--- |
+| **Level 1** | **Bundle Format** | Chrome MV3 content scripts reject external ES module `import` statements with syntax errors. | **Standalone IIFE Packaging**: Bundles the content script into an autonomous, non-chunked IIFE script (`vite.content.config.ts` → `dist/content.js`). |
+| **Level 2** | **Component Tree** | Shadow DOM elements (`<foodguardian-root>`, `<fg-rating-card>`) fail to render if definitions are tree-shaken. | **Explicit Custom Element Registration**: Explicit side-effect registration of web components ensures cards and analysis panels mount cleanly. |
+| **Level 3** | **SPA Navigation** | Modern grocery apps use React/Next.js client-side navigation. `history.pushState` monkey-patching in isolated worlds does not trigger extension hooks. | **Dual Polling & Worker Sync**: Background service worker listens to `chrome.tabs.onUpdated` and the content watcher polls active URL/DOM mutations every 600ms. |
+| **Level 4** | **DOM Parsing** | Real product listings often omit colons after `Ingredients` (e.g. `<th>Ingredients</th><td>...</td>` or `<h4>Ingredients</h4><p>...</p>`). | **Structural DOM Scanner**: `scanDomForIngredients` and `scanDomForNutrition` deeply inspect table headers/cells, definition lists (`<dt>/<dd>`), and adjacent sibling text. |
+| **Level 5** | **Backend CORS** | Requests sent from `https://www.amazon.in` send marketplace origin headers that fail standard local CORS checks. | **Universal CORS & Preflight Exemption**: FastAPI `CORSMiddleware` configured with `allow_origin_regex=r".*"` and preflight `OPTIONS` requests exempted from rate limits. |
+| **Level 6** | **Lazy-Loaded Specs** | Certain products load ingredients only after clicking "See More" or "Product Information". | **Manual Re-Scan Trigger**: Extension popup provides an instant `⚡ Re-scan Current Page` button to re-run extraction at any point. |
+
+---
+
+## 4. Project Structure
 
 ```text
 FoodGuardian/
@@ -90,9 +108,9 @@ FoodGuardian/
 │   │   ├── background/              # Background service worker & tab cache
 │   │   ├── components/              # Shadow DOM Web Components (card, panel)
 │   │   ├── content/                 # Content script & MutationObserver
-│   │   ├── extraction/              # JSON-LD & DOM nutrition/ingredient extractors
+│   │   ├── extraction/              # JSON-LD & DOM structural extractors
 │   │   ├── options/                 # Extension settings UI & logic
-│   │   ├── popup/                   # Extension popup UI & logic
+│   │   ├── popup/                   # Extension popup UI & manual re-scan logic
 │   │   ├── types/                   # TypeScript interfaces
 │   │   └── utils/                   # Storage, debounce, logger
 │   ├── public/                      # Extension icons and assets
@@ -100,7 +118,8 @@ FoodGuardian/
 │   ├── manifest.json                # Chrome Manifest V3 specification
 │   ├── package.json                 # Node dependencies and scripts
 │   ├── tsconfig.json                # TypeScript compiler configuration
-│   ├── vite.config.ts               # Vite multi-entry extension bundler
+│   ├── vite.config.ts               # Vite multi-entry extension bundler (popup, options, bg)
+│   ├── vite.content.config.ts       # Vite IIFE content script bundler
 │   └── test_fixture.html            # Realistic test fixture simulating Amazon.in
 │
 ├── backend/                         # FastAPI Intelligence Backend
@@ -127,6 +146,7 @@ FoodGuardian/
 │   ├── Dockerfile                   # Production container definition
 │   └── pytest.ini                   # Pytest configuration
 │
+├── run_backend.py                   # One-click backend bootstrapper with path resolution
 ├── docker-compose.yml               # PostgreSQL, Redis, and FastAPI services
 ├── .env.example                     # Environment template
 └── README.md                        # Documentation
@@ -134,43 +154,49 @@ FoodGuardian/
 
 ---
 
-## 4. Getting Started
+## 5. Getting Started
 
 ### Prerequisites
-* **Python**: 3.11+
-* **Node.js**: 18+ (tested on v22)
+* **Python**: 3.11+ (Python 3.12 and 3.13 supported)
+* **Node.js**: 18+ (tested on v20 and v22)
 * **npm**: 9+
-* **Docker** *(Optional, for containerized PostgreSQL & Redis)*
+* **Google Chrome**: Version 110+ (MV3 compliant)
 
 ---
 
-### Step 1: Start the Backend API
+### Step 1: Set Up and Start the Backend API
 
-#### Option A: Instant Local Development (SQLite)
-Zero external dependencies required; runs immediately on your local machine.
+#### 1. Create and Activate Virtual Environment
+```bash
+# In the FoodGuardian root directory:
+python -m venv .venv
 
-From the root project directory:
+# On Windows:
+.venv\Scripts\activate
+
+# On macOS/Linux:
+source .venv/bin/activate
+```
+
+#### 2. Install Dependencies
+```bash
+pip install -r backend/requirements.txt
+```
+
+#### 3. Launch Backend Server
 ```bash
 python run_backend.py
 ```
-*Or using uvicorn directly from root:*
+*Alternatively, using uvicorn directly:*
 ```bash
 python -m uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port 8000 --reload
 ```
-*Or from inside the backend directory:*
-```bash
-cd backend
-python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-```
-On startup, FoodGuardian automatically seeds the verified FSSAI and European Union regulatory dataset into the database.
 
-Interactive OpenAPI documentation is immediately available at:
-👉 **http://localhost:8000/docs**
-
-#### Option B: Docker Compose (PostgreSQL + Redis + FastAPI)
-```bash
-docker-compose up -d
-```
+* On startup, FoodGuardian automatically seeds the verified FSSAI and European Union regulatory database into a local SQLite database (`backend/foodguardian.db`).
+* Interactive OpenAPI documentation is accessible at:  
+  👉 **http://localhost:8000/docs**
+* Health status endpoint:  
+  👉 **http://localhost:8000/api/v1/health**
 
 ---
 
@@ -181,33 +207,38 @@ cd extension
 npm install
 npm run build
 ```
-The compiled, ready-to-load Manifest V3 extension will be created in `extension/dist/`.
+This executes the dual build (`vite build && vite build --config vite.content.config.ts`):
+1. Compiles the popup, options page, and background service worker.
+2. Compiles `content.js` as a self-contained IIFE bundle into `extension/dist/content.js`.
 
 ---
 
 ### Step 3: Load Extension into Google Chrome
 
-1. Open Google Chrome and navigate to `chrome://extensions`.
-2. Enable **Developer mode** using the toggle in the top-right corner.
-3. Click **Load unpacked**.
-4. Select the `extension/dist` directory (`c:\...\FoodGuardian\extension\dist`).
-5. The **FoodGuardian** extension is now active!
+1. Open Google Chrome and enter `chrome://extensions` in the address bar.
+2. Toggle on **Developer mode** in the top-right corner.
+3. Click the **Load unpacked** button in the top-left corner.
+4. Browse to and select the `extension/dist` folder inside your FoodGuardian project.
+5. The **FoodGuardian** extension card will appear with its icon and version `1.0.0`.
 
 ---
 
 ### Step 4: Test on E-Commerce Pages
 
-1. Open any food product on Amazon India (e.g. biscuits, snacks, sauces).
-2. Or open the built-in local test fixture:
-   ```bash
-   # Open extension/test_fixture.html in Chrome
-   ```
-3. FoodGuardian detects the product, analyzes the ingredients, and injects the **FoodGuardian Rating Card** (`<fg-rating-card>`) into the page.
-4. Click **[Why this rating?]** to open the full **Detailed Analysis Panel** with India vs EU regulatory comparison tables and official evidence links.
+#### Method A: Built-In Realistic Test Fixture
+A pre-configured, realistic Amazon India product page is included:
+1. In Google Chrome, press `Ctrl + O` (or navigate to `file:///.../FoodGuardian/extension/test_fixture.html`).
+2. FoodGuardian automatically detects the product (`Britannia Good Day Butter Cookies`), extracts ingredients, calls the local backend, and injects the rating card into the buy box.
+3. Click **"Why this rating?"** to open the Shadow DOM slide-in drawer showing the 5-factor breakdown and India vs EU regulatory comparison table.
+
+#### Method B: Live E-Commerce Websites
+1. Open any packaged food item on [Amazon India](https://www.amazon.in) (e.g. search for *"Bourbon Biscuits"*, *"Maggi Noodles"*, *"Ketchup"*, or *"Peanut Butter"*).
+2. FoodGuardian automatically extracts the product title, ingredients list, and nutrition facts from the product details/specifications table.
+3. If a product loads specifications dynamically after clicking "See More", click the **FoodGuardian extension icon** in your toolbar and press **"⚡ Re-scan Current Page"**.
 
 ---
 
-## 5. API Specification Summary
+## 6. API Specification Summary
 
 All endpoints are versioned under `/api/v1`:
 
@@ -223,25 +254,34 @@ All endpoints are versioned under `/api/v1`:
 
 ---
 
-## 6. Testing
+## 7. Testing Suite
 
 ### Run Backend Tests (Pytest)
 ```bash
-cd backend
-pytest
+.venv\Scripts\python -m pytest backend/tests
 ```
-*17 tests covering ingredient normalization, additive matching, category-aware regulatory rules, titanium dioxide EU ban, high-sugar penalties, standardized error envelopes, and complete E2E flows.*
+* **17 passing tests** covering:
+  * Ingredient tokenization and alias resolution
+  * Additive E-number / INS regex extraction
+  * Category-specific regulatory divergence
+  * Titanium Dioxide (E171) EU ban vs India allowance
+  * High-sugar / high-sodium WHO penalty scoring
+  * Graceful degradation when nutrition labels are absent
+  * Full E2E analysis flows
 
 ### Run Extension Tests (Vitest)
 ```bash
 cd extension
 npm test
 ```
-*Tests covering URL matching for Amazon, BigBasket, Blinkit, adapter fallback, and DOM nutrition parsing.*
+* **6 passing tests** covering:
+  * Amazon, BigBasket, and Blinkit URL recognition
+  * Generic fallback adapter execution
+  * DOM nutrition string parsing
 
 ---
 
-## 7. Regulatory Intelligence & Trust Model
+## 8. Regulatory Intelligence & Trust Model
 
 FoodGuardian adheres strictly to objective, evidence-backed regulatory comparison:
 * **Factual Status Only**: Distinguishes `authorized`, `limit_applies`, `condition_applies`, `not_authorized`, and `unknown`.
@@ -251,6 +291,18 @@ FoodGuardian adheres strictly to objective, evidence-backed regulatory compariso
 
 ---
 
-## 8. License
+## 9. Troubleshooting & FAQ
+
+**Q: The badge does not show up on a product page.**  
+* **Check Backend**: Verify the backend is running (`curl http://localhost:8000/api/v1/health`).
+* **Check Extension Dist**: Ensure you loaded `extension/dist` (and ran `npm run build` inside `extension/`).
+* **Manual Re-scan**: Click the FoodGuardian extension popup and click `⚡ Re-scan Current Page`.
+
+**Q: Ingredients are hidden behind a "See More" button.**  
+* Scroll down to the Product Information or Ingredients section and expand it, then click `⚡ Re-scan Current Page` in the popup.
+
+---
+
+## 10. License
 
 FoodGuardian is built for transparency and consumer education under the MIT License.

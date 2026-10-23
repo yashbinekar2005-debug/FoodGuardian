@@ -14,10 +14,23 @@
   ],
   "host_permissions": [
     "https://*.amazon.in/*",
+    "https://amazon.in/*",
+    "https://*.amazon.com/*",
+    "https://amazon.com/*",
     "https://*.bigbasket.com/*",
+    "https://bigbasket.com/*",
     "https://*.blinkit.com/*",
+    "https://blinkit.com/*",
+    "https://*.zepto.com/*",
+    "https://zepto.com/*",
+    "https://*.swiggy.com/*",
+    "https://swiggy.com/*",
+    "https://*.jiomart.com/*",
+    "https://jiomart.com/*",
     "http://localhost:8000/*",
-    "http://127.0.0.1:8000/*"
+    "http://127.0.0.1:8000/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*"
   ],
   "background": {
     "service_worker": "background.js",
@@ -27,10 +40,24 @@
     {
       "matches": [
         "https://*.amazon.in/*",
+        "https://amazon.in/*",
+        "https://*.amazon.com/*",
+        "https://amazon.com/*",
         "https://*.bigbasket.com/*",
+        "https://bigbasket.com/*",
         "https://*.blinkit.com/*",
+        "https://blinkit.com/*",
+        "https://*.zepto.com/*",
+        "https://zepto.com/*",
+        "https://*.swiggy.com/*",
+        "https://swiggy.com/*",
+        "https://*.jiomart.com/*",
+        "https://jiomart.com/*",
         "http://localhost:*/*",
-        "http://127.0.0.1:*/*"
+        "http://localhost/*",
+        "http://127.0.0.1:*/*",
+        "http://127.0.0.1/*",
+        "file:///*"
       ],
       "js": ["content.js"],
       "run_at": "document_idle"

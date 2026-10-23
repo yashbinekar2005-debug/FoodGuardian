@@ -39,12 +39,15 @@ export class GenericAdapter implements SiteAdapter {
   extractProduct(root: Document): RawProductData | null {
     const jsonLd = JsonLdExtractor.extract(root);
 
-    // Name
+    // Name with robust fallbacks
     const h1 = root.querySelector('h1')?.textContent?.trim();
-    const metaTitle = root.querySelector('meta[property="og:title"]')?.getAttribute('content');
-    const name = jsonLd?.name || h1 || metaTitle || null;
+    const metaTitle = root.querySelector('meta[property="og:title"], meta[name="twitter:title"]')?.getAttribute('content');
+    const titleClass = root.querySelector('[class*="product-title"], [class*="product_name"], [data-qa="product-title"]')?.textContent?.trim();
+    const rawDocTitle = typeof document !== 'undefined' ? document.title.replace(/\s*[-|].*$/, '').trim() : '';
+    let name = jsonLd?.name || h1 || metaTitle || titleClass || (rawDocTitle && rawDocTitle.length > 3 ? rawDocTitle : null);
 
     if (!name) return null;
+    name = name.replace(/\s+/g, ' ').trim();
 
     // Brand
     const metaBrand = root.querySelector('meta[property="product:brand"]')?.getAttribute('content');

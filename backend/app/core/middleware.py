@@ -75,8 +75,8 @@ rate_limiter = SimpleRateLimiter(limit_per_minute=settings.RATE_LIMIT_PER_MINUTE
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        # Exclude docs, openapi, and health from strict rate limiting
-        if request.url.path in ["/api/v1/health", "/docs", "/openapi.json", "/redoc"]:
+        # Exclude OPTIONS preflights, docs, openapi, and health from strict rate limiting
+        if request.method == "OPTIONS" or request.url.path in ["/api/v1/health", "/docs", "/openapi.json", "/redoc"]:
             return await call_next(request)
 
         client_ip = request.client.host if request.client else "unknown"

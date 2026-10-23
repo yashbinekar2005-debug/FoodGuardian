@@ -46,7 +46,7 @@ setup_exception_handlers(app)
 # 2. CORS Middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if settings.CORS_ORIGINS == ["*"] else settings.CORS_ORIGINS,
+    allow_origin_regex=r".*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

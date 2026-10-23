@@ -1,7 +1,8 @@
 import { AdapterRegistry } from '../adapters/adapter_registry';
 import { FoodGuardianApiClient } from '../api/client';
 import { PageMutationWatcher } from './mutation_observer';
-import { FoodGuardianRoot } from '../components/container';
+import '../components/container'; // Essential side-effect: registers customElements.define('foodguardian-root', ...)
+import type { FoodGuardianRoot } from '../components/container';
 import { getSettings } from '../utils/storage';
 import { logger } from '../utils/logger';
 import { AnalyzeResponse } from '../types';
@@ -19,6 +20,10 @@ function ensureRoot(): FoodGuardianRoot {
   return el;
 }
 
+const watcher = new PageMutationWatcher(() => {
+  analyzeCurrentProduct();
+});
+
 async function analyzeCurrentProduct() {
   const settings = await getSettings();
   if (!settings.enabled) {
@@ -29,11 +34,24 @@ async function analyzeCurrentProduct() {
   const adapter = AdapterRegistry.getAdapterForUrl(window.location.href);
   logger.info(`Analyzing page with adapter: ${adapter.name}`);
 
-  const product = adapter.extractProduct(document);
+  let product = adapter.extractProduct(document);
+  // Fallback to GenericAdapter if specific adapter returned null
+  if ((!product || !product.name) && adapter.name !== 'Generic E-Commerce Adapter') {
+    const genericAdapter = AdapterRegistry.getFallbackAdapter();
+    const fallbackProduct = genericAdapter.extractProduct(document);
+    if (fallbackProduct && fallbackProduct.name) {
+      logger.info('Product detected via Generic Fallback Adapter');
+      product = fallbackProduct;
+    }
+  }
+
   if (!product || !product.name) {
+    watcher.setProductDetected(false);
     logger.info('No product detected on current page.');
     return;
   }
+
+  watcher.setProductDetected(true);
 
   // Deduplicate analysis if same product and ingredients
   const currentHash = `${product.name}|${product.brand || ''}|${product.ingredients_text || ''}`;
@@ -50,7 +68,9 @@ async function analyzeCurrentProduct() {
     lastAnalyzedHash = currentHash;
     currentAnalysisResult = analysis;
 
-    hostRoot.showData(analysis);
+    if (hostRoot && typeof hostRoot.showData === 'function') {
+      hostRoot.showData(analysis);
+    }
 
     // Notify background worker of analyzed product for popup
     if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
@@ -75,9 +95,6 @@ if (document.readyState === 'loading') {
 }
 
 // Watch dynamic SPA route changes / variations
-const watcher = new PageMutationWatcher(() => {
-  analyzeCurrentProduct();
-});
 watcher.start();
 
 // Listen for messages from popup or background
