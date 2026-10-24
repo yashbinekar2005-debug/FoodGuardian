@@ -23,6 +23,9 @@ export class DomExtractor {
     const directSelectors = [
       '#nic-ingredients-content',
       '#ingredients-content',
+      '#productDetails_techSpec_section_1',
+      '#productDetails_db_sections',
+      '#detailBullets_feature_div',
       '[data-feature-name="ingredients"]',
       '#ingredients_feature_div',
       'div[data-qa="ingredients"]',
@@ -30,30 +33,43 @@ export class DomExtractor {
       'div[class*="Ingredients"]',
       'div[class*="ingredients"]',
       'div[id*="ingredients"]',
-      'section[class*="ingredient"]'
+      'section[class*="ingredient"]',
+      '.a-section.a-spacing-medium.a-spacing-top-small',
+      'table#productDetails_techSpec_table'
     ];
     for (const sel of directSelectors) {
       const el = root.querySelector(sel);
       if (el && el.textContent?.trim()) {
         const text = el.textContent.trim();
-        const extracted = this.extractIngredientsFromText(text) || text;
-        const cleaned = extracted.replace(/^(?:key\s+|main\s+)?(?:ingredients?|composition|contents)\s*[:\-\n ]*/i, '').trim();
-        if (cleaned.length > 5 && !/^(ingredients?|none)$/i.test(cleaned)) {
-          return cleaned;
+        // Check if this block contains ingredients
+        if (/ingredient/i.test(text)) {
+          const extracted = this.extractIngredientsFromText(text);
+          if (extracted) {
+            const cleaned = extracted.replace(/^(?:key\s+|main\s+|active\s+)?(?:ingredients?|composition|contents)\s*[:\-\n ]*/i, '').trim();
+            if (cleaned.length > 5 && !/^(ingredients?|none|na)$/i.test(cleaned)) {
+              return cleaned;
+            }
+          }
+          const cleaned = text.replace(/^(?:key\s+|main\s+|active\s+)?(?:ingredients?|composition|contents)\s*[:\-\n ]*/i, '').trim();
+          if (cleaned.length > 5 && !/^(ingredients?|none|na)$/i.test(cleaned) && /[,;]/.test(cleaned)) {
+            return cleaned;
+          }
         }
       }
     }
 
     // 2. Table rows & specification lists (Amazon, BigBasket, generic specs)
-    const tableRows = root.querySelectorAll('tr, dl, div[class*="row"], div[class*="Specification"], div[class*="ItemDetail"]');
+    const tableRows = root.querySelectorAll('tr, dl, div[class*="row"], div[class*="Specification"], div[class*="ItemDetail"], li');
     for (const row of Array.from(tableRows)) {
       const text = row.textContent || '';
-      if (/ingredient/i.test(text)) {
-        const valCell = row.querySelector('td, dd, [class*="value"], [class*="desc"], .prodDetAttrValue');
+      if (/\bingredients?\b/i.test(text)) {
+        const valCell = row.querySelector('td, dd, [class*="value"], [class*="desc"], .prodDetAttrValue, .a-expander-content');
         if (valCell && valCell.textContent?.trim()) {
           const val = valCell.textContent.trim();
-          if (val.length > 5 && !/^(ingredients?|none)$/i.test(val)) {
-            return val;
+          if (val.length > 5 && !/^(ingredients?|none)$/i.test(val) && /[a-z]/i.test(val)) {
+            const extracted = this.extractIngredientsFromText(val) || val;
+            const cleaned = extracted.replace(/^(?:key\s+|main\s+)?(?:ingredients?|composition|contents)\s*[:\-\n ]*/i, '').trim();
+            if (cleaned.length > 5) return cleaned;
           }
         }
         const extracted = this.extractIngredientsFromText(text);
@@ -62,10 +78,10 @@ export class DomExtractor {
     }
 
     // 3. Headings / Labels followed by sibling elements (e.g. <h4>Ingredients</h4> <p>...</p>)
-    const headers = root.querySelectorAll('h2, h3, h4, h5, h6, strong, b, dt, span[class*="label"], div[class*="title"], div[class*="label"], div[class*="header"]');
+    const headers = root.querySelectorAll('h2, h3, h4, h5, h6, strong, b, dt, span[class*="label"], div[class*="title"], div[class*="label"], div[class*="header"], th');
     for (const h of Array.from(headers)) {
       const text = h.textContent?.trim() || '';
-      if (/^(?:key\s+|main\s+)?ingredients?(?:\s*[:\-])?$/i.test(text)) {
+      if (/\bingredients?\b/i.test(text) && text.length < 50) {
         let next = h.nextElementSibling;
         if (!next && h.parentElement) {
           next = h.parentElement.nextElementSibling;
@@ -73,7 +89,18 @@ export class DomExtractor {
         if (next && next.textContent?.trim()) {
           const val = next.textContent.trim();
           if (val.length > 5 && !/^(ingredients?|none)$/i.test(val)) {
-            return val;
+            const extracted = this.extractIngredientsFromText(val) || val;
+            const cleaned = extracted.replace(/^(?:key\s+|main\s+)?(?:ingredients?|composition|contents)\s*[:\-\n ]*/i, '').trim();
+            if (cleaned.length > 5) return cleaned;
+          }
+        }
+        // Also check parent's next sibling
+        if (h.parentElement?.nextElementSibling) {
+          const val = h.parentElement.nextElementSibling.textContent?.trim();
+          if (val && val.length > 5 && !/^(ingredients?|none)$/i.test(val)) {
+            const extracted = this.extractIngredientsFromText(val) || val;
+            const cleaned = extracted.replace(/^(?:key\s+|main\s+)?(?:ingredients?|composition|contents)\s*[:\-\n ]*/i, '').trim();
+            if (cleaned.length > 5) return cleaned;
           }
         }
       }

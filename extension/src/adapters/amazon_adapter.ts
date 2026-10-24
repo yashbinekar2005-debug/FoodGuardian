@@ -7,10 +7,11 @@ export class AmazonAdapter implements SiteAdapter {
   name = 'Amazon India Adapter';
 
   matches(url: string): boolean {
-    return /amazon\.(in|com|co\.uk)/i.test(url) && (
-      /\/dp\/|\/gp\/product\/|\/gp\/aw\/d\/|\/d\/|\/product\//i.test(url) ||
-      /\/([A-Z0-9]{10})(?:[/?#]|$)/i.test(url)
-    );
+    if (!/amazon\.(in|com|co\.uk|ae|sa)/i.test(url)) return false;
+    // Be more permissive - match if it looks like a product page
+    return /\/dp\/|\/gp\/product\/|\/gp\/aw\/d\/|\/d\/|\/product\/|\/sspa\/|\/hz\/|\/([A-Z0-9]{10})(?:[/?#]|$)/i.test(url) ||
+           /\/[A-Z0-9]{10}(?:\/|\?|$)/.test(url) ||
+           /product/i.test(url);
   }
 
   extractIdentifiers(root: Document): ProductIdentifiers {
@@ -27,11 +28,21 @@ export class AmazonAdapter implements SiteAdapter {
   }
 
   extractIngredients(root: Document): string | null {
-    return DomExtractor.scanDomForIngredients(root);
+    // Try DOM extraction first
+    let result = DomExtractor.scanDomForIngredients(root);
+    if (result) return result;
+    // Also try JSON-LD
+    const jsonLd = JsonLdExtractor.extract(root);
+    if (jsonLd?.ingredients_text) return jsonLd.ingredients_text;
+    return null;
   }
 
   extractNutrition(root: Document): NutritionData | null {
-    return DomExtractor.scanDomForNutrition(root);
+    let result = DomExtractor.scanDomForNutrition(root);
+    if (result) return result;
+    const jsonLd = JsonLdExtractor.extract(root);
+    if (jsonLd?.nutrition) return jsonLd.nutrition;
+    return null;
   }
 
   extractProduct(root: Document): RawProductData | null {
@@ -39,41 +50,42 @@ export class AmazonAdapter implements SiteAdapter {
     const jsonLd = JsonLdExtractor.extract(root);
 
     // Title with multiple fallbacks
-    const titleEl = root.querySelector('#productTitle, #title, h1.a-size-large, h1#title, span#productTitle, h1');
+    const titleEl = root.querySelector('#productTitle, #title, h1.a-size-large, h1#title, span#productTitle, h1[data-automation-id="product-title"], .product-title-word-break');
     const ogTitle = root.querySelector('meta[property="og:title"]')?.getAttribute('content');
+    const twitterTitle = root.querySelector('meta[name="twitter:title"]')?.getAttribute('content');
     const rawDocTitle = typeof document !== 'undefined'
       ? document.title.replace(/^Amazon\.[a-z.]+\s*[:\-]\s*/i, '').replace(/\s*[:\-]\s*Amazon\.[a-z.]+$/i, '').trim()
       : '';
     
-    let name = titleEl?.textContent?.trim() || jsonLd?.name || ogTitle || (rawDocTitle && !rawDocTitle.includes('Page Not Found') ? rawDocTitle : null);
+    let name = titleEl?.textContent?.trim() || jsonLd?.name || ogTitle || twitterTitle || (rawDocTitle && !rawDocTitle.toLowerCase().includes('page not found') && rawDocTitle.length > 3 ? rawDocTitle : null);
     if (!name) return null;
     name = name.replace(/\s+/g, ' ').trim();
 
     // Brand
-    const brandEl = root.querySelector('#bylineInfo, #brand, tr.po-brand td.po-break-word, a#bylineInfo, .po-brand .a-span9');
-    let brand = brandEl?.textContent?.replace(/Brand:\s*|Visit the\s*|Store/gi, '').trim() ||
-                root.querySelector('meta[property="product:brand"]')?.getAttribute('content') ||
+    const brandEl = root.querySelector('#bylineInfo, #brand, tr.po-brand td.po-break-word, a#bylineInfo, .po-brand .a-span9, #brand a, [data-brand-name]');
+    let brand = brandEl?.textContent?.replace(/Brand:\s*|Visit the\s*|Store|from\s+/gi, '').trim() ||
+                root.querySelector('meta[property="product:brand"], meta[name="brand"]')?.getAttribute('content') ||
                 jsonLd?.brand || null;
 
     // Category
-    const breadcrumb = root.querySelector('#wayfinding-breadcrumbs_container');
+    const breadcrumb = root.querySelector('#wayfinding-breadcrumbs_container, #breadcrumb');
     const category = breadcrumb?.textContent?.replace(/\s+/g, ' ').trim() || jsonLd?.category || 'food';
 
-    const ingredients = this.extractIngredients(root) || jsonLd?.ingredients_text || null;
-    const nutrition = this.extractNutrition(root) || jsonLd?.nutrition || null;
+    const ingredients = this.extractIngredients(root);
+    const nutrition = this.extractNutrition(root);
     const identifiers = this.extractIdentifiers(root);
 
     return {
       name,
       brand,
-      url: window.location.href,
+      url: typeof window !== 'undefined' ? window.location.href : null,
       category,
       ingredients_text: ingredients,
       nutrition,
       identifiers,
       package_size: null,
       serving_size: null,
-      image_url: jsonLd?.image_url || root.querySelector('#landingImage, #imgBlkFront')?.getAttribute('src') || null
+      image_url: jsonLd?.image_url || root.querySelector('#landingImage, #imgBlkFront, .imgTagWrapper img')?.getAttribute('src') || root.querySelector('meta[property="og:image"]')?.getAttribute('content') || null
     };
   }
 
