@@ -119,15 +119,39 @@ export class DomExtractor {
     }
 
     // 5. Deep text scan across paragraphs and list items
-    const elements = root.querySelectorAll('p, li, div');
+    const elements = root.querySelectorAll('p, li, div, span');
     for (const el of Array.from(elements)) {
       if (el.children.length <= 2) {
         const text = el.textContent || '';
-        if (/^(?:key\s+|active\s+|main\s+)?ingredients?\s*[:\-\n ]+/i.test(text.trim())) {
+        if (/(?:^|\n|\s)(?:key\s+|active\s+|main\s+)?ingredients?\s*[:\-\n ]+/i.test(text.trim())) {
           const extracted = this.extractIngredientsFromText(text);
-          if (extracted) return extracted;
+          if (extracted) {
+            const cleaned = extracted.replace(/^(?:key\s+|main\s+|active\s+)?(?:ingredients?|composition|contents)\s*[:\-\n ]*/i, '').trim();
+            if (cleaned.length > 5) return cleaned;
+          }
         }
       }
+    }
+
+    // 6. Last resort: scan full body text
+    try {
+      const fullText = root instanceof Document ? (root.body?.textContent || '') : root.textContent || '';
+      if (fullText && /ingredient/i.test(fullText)) {
+        const extracted = this.extractIngredientsFromText(fullText);
+        if (extracted) {
+          const cleaned = extracted.replace(/^(?:key\s+|main\s+|active\s+)?(?:ingredients?|composition|contents)\s*[:\-\n ]*/i, '').trim();
+          if (cleaned.length > 5) return cleaned;
+        }
+        // Try to find pattern more directly
+        const m = fullText.match(/ingredients?\s*[:\-]\s*([^\n\r]{10,500})/i);
+        if (m && m[1]) {
+          let cand = m[1].trim();
+          cand = cand.replace(/\.(?:\s|$).*$/s, '').trim();
+          if (cand.length > 5) return cand;
+        }
+      }
+    } catch (e) {
+      // ignore
     }
 
     return null;

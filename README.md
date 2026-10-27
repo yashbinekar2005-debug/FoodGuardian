@@ -189,14 +189,14 @@ python run_backend.py
 ```
 *Alternatively, using uvicorn directly:*
 ```bash
-python -m uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port 8000 --reload
+python -m uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port 8001 --reload
 ```
 
 * On startup, FoodGuardian automatically seeds the verified FSSAI and European Union regulatory database into a local SQLite database (`backend/foodguardian.db`).
 * Interactive OpenAPI documentation is accessible at:  
-  👉 **http://localhost:8000/docs**
+  👉 **http://localhost:8001/docs**
 * Health status endpoint:  
-  👉 **http://localhost:8000/api/v1/health**
+  👉 **http://localhost:8001/api/v1/health**
 
 ---
 
@@ -294,7 +294,7 @@ FoodGuardian adheres strictly to objective, evidence-backed regulatory compariso
 ## 9. Troubleshooting & FAQ
 
 **Q: The badge does not show up on a product page.**  
-* **Check Backend**: Verify the backend is running (`curl http://localhost:8000/api/v1/health`).
+* **Check Backend**: Verify the backend is running (`curl http://localhost:8001/api/v1/health`).
 * **Check Extension Dist**: Ensure you loaded `extension/dist` (and ran `npm run build` inside `extension/`).
 * **Manual Re-scan**: Click the FoodGuardian extension popup and click `⚡ Re-scan Current Page`.
 

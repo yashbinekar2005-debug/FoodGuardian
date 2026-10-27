@@ -10,6 +10,7 @@ describe('Site Adapters URL Matching', () => {
   it('AmazonAdapter matches Amazon India product URLs', () => {
     const adapter = new AmazonAdapter();
     expect(adapter.matches('https://www.amazon.in/dp/B07T4RNZ7Q')).toBe(true);
+    expect(adapter.matches('https://amazon.in/dp/B0CLDFRQKJ')).toBe(true);
     expect(adapter.matches('https://www.amazon.in/Sunfeast-Dark-Fantasy-Choco-Fills/dp/B00TN9M988/ref=sr_1_1')).toBe(true);
     expect(adapter.matches('https://www.amazon.in/gp/product/B00TN9M988')).toBe(true);
     expect(adapter.matches('https://www.amazon.in/s?k=biscuits')).toBe(false);

@@ -20,11 +20,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Query background for active tab analysis data
   chrome.runtime.sendMessage({ type: 'FG_GET_POPUP_DATA' }, (response) => {
+    const runtimeError = chrome.runtime.lastError;
+    if (runtimeError) {
+      showEmptyState('FoodGuardian could not read this page', runtimeError.message || 'Refresh the product page and try again.');
+      return;
+    }
+
     if (response && response.analysis) {
       const data: AnalyzeResponse = response.analysis;
       renderAnalysis(data);
+    } else if (response?.status === 'analysis-error') {
+      showEmptyState('Product detected, but analysis failed', response.error || 'Check that the FoodGuardian backend is running.');
+    } else if (response?.status === 'analyzing') {
+      showEmptyState('Product detected', 'FoodGuardian is still analyzing this product. Reopen the extension in a moment.');
+    } else if (response?.status === 'unavailable') {
+      showEmptyState('Cannot read this page', 'Refresh the product page and try again.');
+    } else if (response?.status === 'no-product') {
+      showEmptyState('No food product detected', 'Open a packaged-food product page and wait a moment for analysis.');
     }
   });
+
+  function showEmptyState(title: string, detail: string) {
+    const titleElement = emptyState.querySelector('p');
+    const detailElement = titleElement?.nextElementSibling;
+    if (titleElement) titleElement.textContent = title;
+    if (detailElement) detailElement.textContent = detail;
+  }
 
   function renderAnalysis(data: AnalyzeResponse) {
     emptyState.style.display = 'none';

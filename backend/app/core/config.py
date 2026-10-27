@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     DEBUG: bool = True
     
     API_HOST: str = "0.0.0.0"
-    API_PORT: int = 8000
+    API_PORT: int = 8001
     API_PREFIX: str = "/api/v1"
     
     # Database

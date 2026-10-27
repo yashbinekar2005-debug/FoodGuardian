@@ -10,11 +10,13 @@ export class FgAnalysisPanel extends HTMLElement {
   }
 
   connectedCallback() {
-    this.render();
+    this.addEventListener('click', this.handleClick);
     window.addEventListener('keydown', this.handleKeyDown);
+    this.render();
   }
 
   disconnectedCallback() {
+    this.removeEventListener('click', this.handleClick);
     window.removeEventListener('keydown', this.handleKeyDown);
   }
 
@@ -24,81 +26,142 @@ export class FgAnalysisPanel extends HTMLElement {
     }
   };
 
-  private close() {
-    this.dispatchEvent(new CustomEvent('close-details', { bubbles: true, composed: true }));
-  }
+  private handleClick = (e: Event) => {
+    try {
+      const target = e.target as HTMLElement;
+      if (!target) return;
 
-  private render() {
-    if (!this.analysisData) return;
+      if (target.id === 'fg-panel-close' || target.closest('#fg-panel-close')) {
+        e.preventDefault();
+        e.stopPropagation();
+        this.close();
+        return;
+      }
 
-    const { product, rating, summary, ingredients, additives, nutrition, regulatory_comparison, factors, evidence, rules } = this.analysisData;
-    const gradeClass = `fg-grade-${rating.grade}`;
+      if (target.id === 'fg-backdrop') {
+        e.preventDefault();
+        e.stopPropagation();
+        this.close();
+        return;
+      }
 
-    const confidenceLabel = rating.confidence >= 0.85 ? 'High confidence' : rating.confidence >= 0.60 ? 'Moderate confidence' : 'Low confidence';
-
-    this.innerHTML = `
-      <div class="fg-modal-backdrop" id="fg-backdrop">
-        <div class="fg-modal-sheet" id="fg-sheet">
-          <!-- Header -->
-          <div class="fg-sheet-header">
-            <div style="display: flex; align-items: center; gap: 12px;">
-              <div class="fg-grade-pill ${gradeClass}" style="width: 40px; height: 40px; font-size: 22px;">${rating.grade}</div>
-              <div>
-                <h2 style="font-size: 16px; font-weight: 700; color: #0f172a; margin-bottom: 2px;">
-                  ${product.name.slice(0, 48)}${product.name.length > 48 ? '...' : ''}
-                </h2>
-                <div style="display: flex; gap: 8px; font-size: 12px; color: #64748b;">
-                  <span>Score: <strong>${Math.round(rating.score)}/100</strong></span>
-                  <span>•</span>
-                  <span>${confidenceLabel}</span>
-                  ${product.brand ? `<span>• Brand: ${product.brand}</span>` : ''}
-                </div>
-              </div>
-            </div>
-            <button class="fg-icon-btn" id="fg-panel-close" style="width: 32px; height: 32px; font-size: 20px;">×</button>
-          </div>
-
-          <!-- Tab Bar -->
-          <div class="fg-sheet-tabs">
-            <button class="fg-tab-btn ${this.activeTab === 'overview' ? 'active' : ''}" data-tab="overview">Overview</button>
-            <button class="fg-tab-btn ${this.activeTab === 'factors' ? 'active' : ''}" data-tab="factors">Why this rating?</button>
-            <button class="fg-tab-btn ${this.activeTab === 'nutrition' ? 'active' : ''}" data-tab="nutrition">Nutrition</button>
-            <button class="fg-tab-btn ${this.activeTab === 'ingredients' ? 'active' : ''}" data-tab="ingredients">Ingredients (${ingredients.length})</button>
-            <button class="fg-tab-btn ${this.activeTab === 'additives' ? 'active' : ''}" data-tab="additives">Additives (${additives.length})</button>
-            <button class="fg-tab-btn ${this.activeTab === 'regulatory' ? 'active' : ''}" data-tab="regulatory">India vs EU</button>
-            <button class="fg-tab-btn ${this.activeTab === 'sources' ? 'active' : ''}" data-tab="sources">Sources</button>
-          </div>
-
-          <!-- Content Body -->
-          <div class="fg-sheet-content">
-            ${this.renderTabContent()}
-          </div>
-        </div>
-      </div>
-    `;
-
-    // Tab buttons
-    this.querySelectorAll('.fg-tab-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const tab = (e.currentTarget as HTMLElement).getAttribute('data-tab') as any;
-        if (tab) {
+      const tabBtn = target.closest('.fg-tab-btn') as HTMLElement | null;
+      if (tabBtn) {
+        const tab = tabBtn.getAttribute('data-tab') as any;
+        if (tab && tab !== this.activeTab) {
+          e.preventDefault();
+          e.stopPropagation();
           this.activeTab = tab;
           this.render();
         }
-      });
-    });
-
-    // Close button & backdrop click
-    this.querySelector('#fg-panel-close')?.addEventListener('click', () => this.close());
-    this.querySelector('#fg-backdrop')?.addEventListener('click', (e) => {
-      if ((e.target as HTMLElement).id === 'fg-backdrop') {
-        this.close();
+        return;
       }
-    });
+    } catch (err) {
+      console.error('[FoodGuardian][analysis-panel] click handler error:', err);
+    }
+  };
+
+  private close() {
+    try {
+      this.dispatchEvent(new CustomEvent('close-details', { bubbles: true, composed: true }));
+    } catch {}
+  }
+
+  private render() {
+    try {
+      if (!this.analysisData) return;
+
+      const data: any = this.analysisData as any;
+      const product = data.product || {};
+      const rating = data.rating || {};
+      const summary = data.summary || {};
+      const ingredients: any[] = Array.isArray(data.ingredients) ? data.ingredients : [];
+      const additives: any[] = Array.isArray(data.additives) ? data.additives : [];
+      const nutrition = data.nutrition || {};
+      const regulatory_comparison = data.regulatory_comparison || {};
+      const factors: any[] = Array.isArray(data.factors) ? data.factors : [];
+      const evidence: any[] = Array.isArray(data.evidence) ? data.evidence : [];
+      const rules = data.rules || {};
+
+      const grade = rating.grade || 'C';
+      const gradeClass = `fg-grade-${grade}`;
+      const confidence = typeof rating.confidence === 'number' ? rating.confidence : 0;
+      const confidenceLabel = confidence >= 0.85 ? 'High confidence' : confidence >= 0.60 ? 'Moderate confidence' : 'Low confidence';
+      const productName = (product && typeof product.name === 'string') ? product.name : (product?.title || 'Product');
+      const displayName = productName.length > 48 ? productName.slice(0, 48) + '...' : productName;
+      const score = typeof rating.score === 'number' ? Math.round(rating.score) : 0;
+
+      this.innerHTML = `
+        <div class="fg-modal-backdrop" id="fg-backdrop">
+          <div class="fg-modal-sheet" id="fg-sheet">
+            <div class="fg-sheet-header">
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <div class="fg-grade-pill ${gradeClass}" style="width: 40px; height: 40px; font-size: 22px;">${grade}</div>
+                <div>
+                  <h2 style="font-size: 16px; font-weight: 700; color: #0f172a; margin-bottom: 2px;">
+                    ${displayName}
+                  </h2>
+                  <div style="display: flex; gap: 8px; font-size: 12px; color: #64748b;">
+                    <span>Score: <strong>${score}/100</strong></span>
+                    <span>•</span>
+                    <span>${confidenceLabel}</span>
+                    ${product.brand ? `<span>• Brand: ${product.brand}</span>` : ''}
+                  </div>
+                </div>
+              </div>
+              <button class="fg-icon-btn" id="fg-panel-close" style="width: 32px; height: 32px; font-size: 20px;">×</button>
+            </div>
+
+            <div class="fg-sheet-tabs">
+              <button class="fg-tab-btn ${this.activeTab === 'overview' ? 'active' : ''}" data-tab="overview">Overview</button>
+              <button class="fg-tab-btn ${this.activeTab === 'factors' ? 'active' : ''}" data-tab="factors">Why this rating?</button>
+              <button class="fg-tab-btn ${this.activeTab === 'nutrition' ? 'active' : ''}" data-tab="nutrition">Nutrition</button>
+              <button class="fg-tab-btn ${this.activeTab === 'ingredients' ? 'active' : ''}" data-tab="ingredients">Ingredients (${ingredients.length})</button>
+              <button class="fg-tab-btn ${this.activeTab === 'additives' ? 'active' : ''}" data-tab="additives">Additives (${additives.length})</button>
+              <button class="fg-tab-btn ${this.activeTab === 'regulatory' ? 'active' : ''}" data-tab="regulatory">India vs EU</button>
+              <button class="fg-tab-btn ${this.activeTab === 'sources' ? 'active' : ''}" data-tab="sources">Sources</button>
+            </div>
+
+            <div class="fg-sheet-content">
+              ${this.renderTabContent()}
+            </div>
+          </div>
+        </div>
+      `;
+    } catch (err) {
+      console.error('[FoodGuardian][analysis-panel] render crashed:', err);
+      try {
+        this.innerHTML = `
+          <div class="fg-modal-backdrop" id="fg-backdrop">
+            <div class="fg-modal-sheet" id="fg-sheet">
+              <div class="fg-sheet-header">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <div style="font-weight:700;">FoodGuardian</div>
+                </div>
+                <button class="fg-icon-btn" id="fg-panel-close" style="width: 32px; height: 32px; font-size: 20px;">×</button>
+              </div>
+              <div style="padding:24px;color:#dc2626;">Unable to display details. Please close and try again.</div>
+            </div>
+          </div>
+        `;
+      } catch {}
+    }
   }
 
   private renderTabContent(): string {
-    const { rating, summary, ingredients, additives, nutrition, regulatory_comparison, factors, evidence, rules } = this.analysisData!;
+    const data: any = (this.analysisData as any) || {};
+    const rating = data.rating || {};
+    const summary = data.summary || {};
+    const ingredients: any[] = Array.isArray(data.ingredients) ? data.ingredients : [];
+    const additives: any[] = Array.isArray(data.additives) ? data.additives : [];
+    const nutrition = data.nutrition || {};
+    const regulatory_comparison = data.regulatory_comparison || {};
+    const factors: any[] = Array.isArray(data.factors) ? data.factors : [];
+    const evidence: any[] = Array.isArray(data.evidence) ? data.evidence : [];
+    const rules = data.rules || {};
+    const regIndia: any[] = Array.isArray(regulatory_comparison?.india) ? regulatory_comparison.india : [];
+    const regEu: any[] = Array.isArray(regulatory_comparison?.eu) ? regulatory_comparison.eu : [];
+    const nutritionFlags: string[] = Array.isArray(nutrition?.flags) ? nutrition.flags : [];
 
     switch (this.activeTab) {
       case 'overview':
@@ -107,36 +170,36 @@ export class FgAnalysisPanel extends HTMLElement {
             <h3 style="font-size: 15px; font-weight: 700; margin-bottom: 12px;">Executive Summary</h3>
             <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px;">
               <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; text-align: center;">
-                <div style="font-size: 20px; font-weight: 800; color: #0f172a;">${summary.ingredient_count}</div>
+                <div style="font-size: 20px; font-weight: 800; color: #0f172a;">${summary?.ingredient_count ?? ingredients.length}</div>
                 <div style="font-size: 12px; color: #64748b;">Ingredients</div>
               </div>
               <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; text-align: center;">
-                <div style="font-size: 20px; font-weight: 800; color: ${additives.length > 0 ? '#ea580c' : '#16a34a'};">${summary.recognized_additives}</div>
+                <div style="font-size: 20px; font-weight: 800; color: ${additives.length > 0 ? '#ea580c' : '#16a34a'};">${summary?.recognized_additives ?? additives.length}</div>
                 <div style="font-size: 12px; color: #64748b;">Additives Detected</div>
               </div>
               <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; text-align: center;">
-                <div style="font-size: 20px; font-weight: 800; color: #0f172a;">${Math.round(rating.score)}</div>
+                <div style="font-size: 20px; font-weight: 800; color: #0f172a;">${typeof rating.score === 'number' ? Math.round(rating.score) : 0}</div>
                 <div style="font-size: 12px; color: #64748b;">FoodGuardian Score</div>
               </div>
             </div>
 
             <h4 style="font-size: 14px; font-weight: 600; margin-bottom: 10px;">Primary Observations</h4>
             <div style="display: flex; flex-direction: column; gap: 8px;">
-              ${nutrition.flags.map(f => `
+              ${nutritionFlags.map((f: string) => `
                 <div style="padding: 10px 14px; background: #fff7ed; border-left: 4px solid #ea580c; border-radius: 6px; font-size: 13px;">
                   ⚠️ <strong>${f}</strong>: Detected in nutrition breakdown.
                 </div>
               `).join('')}
               ${additives.length > 0 ? `
                 <div style="padding: 10px 14px; background: #f8fafc; border-left: 4px solid #3b82f6; border-radius: 6px; font-size: 13px;">
-                  ℹ️ <strong>Food Additives</strong>: ${additives.map(a => `${a.name} (${a.code})`).join(', ')}.
+                  ℹ️ <strong>Food Additives</strong>: ${additives.map((a: any) => `${a?.name || 'Additive'} (${a?.code || ''})`).join(', ')}.
                 </div>
               ` : `
                 <div style="padding: 10px 14px; background: #f0fdf4; border-left: 4px solid #16a34a; border-radius: 6px; font-size: 13px;">
                   ✓ <strong>Clean Formulation</strong>: No synthetic additives or preservatives identified.
                 </div>
               `}
-              ${regulatory_comparison.india.some(r => r.status === 'not_authorized') || regulatory_comparison.eu.some(r => r.status === 'not_authorized') ? `
+              ${(regIndia.some((r: any) => r?.status === 'not_authorized') || regEu.some((r: any) => r?.status === 'not_authorized')) ? `
                 <div style="padding: 10px 14px; background: #fef2f2; border-left: 4px solid #dc2626; border-radius: 6px; font-size: 13px;">
                   🛑 <strong>Regulatory Notice</strong>: Contains substance not authorized in one of the compared jurisdictions.
                 </div>
@@ -153,24 +216,27 @@ export class FgAnalysisPanel extends HTMLElement {
               FoodGuardian calculates scores using a deterministic 5-factor model evaluating nutrition, additives, cross-jurisdiction regulatory alignment, transparency, and allergens.
             </p>
             <div style="display: flex; flex-direction: column; gap: 10px;">
-              ${factors.map(f => `
-                <div class="fg-factor-card ${f.impact}">
-                  <div style="font-weight: 800; font-size: 15px; min-width: 44px; color: ${f.score_delta > 0 ? '#16a34a' : f.score_delta < 0 ? '#dc2626' : '#64748b'};">
-                    ${f.score_delta > 0 ? `+${f.score_delta}` : f.score_delta}
+              ${factors.map((f: any) => {
+                const delta = typeof f?.score_delta === 'number' ? f.score_delta : 0;
+                return `
+                <div class="fg-factor-card ${f?.impact || 'neutral'}">
+                  <div style="font-weight: 800; font-size: 15px; min-width: 44px; color: ${delta > 0 ? '#16a34a' : delta < 0 ? '#dc2626' : '#64748b'};">
+                    ${delta > 0 ? `+${delta}` : delta}
                   </div>
                   <div style="flex: 1;">
-                    <div style="font-weight: 700; font-size: 13px; color: #0f172a;">${f.factor_name}</div>
-                    <div style="font-size: 12px; color: #475569; margin-top: 2px;">${f.reason}</div>
-                    ${f.evidence ? `<div style="font-size: 11px; color: #94a3b8; margin-top: 4px;">Source: ${f.evidence}</div>` : ''}
+                    <div style="font-weight: 700; font-size: 13px; color: #0f172a;">${f?.factor_name || 'Factor'}</div>
+                    <div style="font-size: 12px; color: #475569; margin-top: 2px;">${f?.reason || ''}</div>
+                    ${f?.evidence ? `<div style="font-size: 11px; color: #94a3b8; margin-top: 4px;">Source: ${f.evidence}</div>` : ''}
                   </div>
                 </div>
-              `).join('')}
+              `;
+              }).join('')}
             </div>
           </div>
         `;
 
       case 'nutrition':
-        if (!nutrition.available) {
+        if (nutrition && nutrition.available === false) {
           return `
             <div style="text-align: center; padding: 40px 20px; color: #64748b;">
               <div style="font-size: 32px; margin-bottom: 12px;">📊</div>
@@ -179,6 +245,9 @@ export class FgAnalysisPanel extends HTMLElement {
             </div>
           `;
         }
+        const normEntries: [string, any][] = (nutrition && typeof nutrition.normalized === 'object' && nutrition.normalized !== null)
+          ? Object.entries(nutrition.normalized)
+          : [];
         return `
           <div>
             <h3 style="font-size: 15px; font-weight: 700; margin-bottom: 6px;">Nutrition Profile (Per 100g)</h3>
@@ -195,9 +264,10 @@ export class FgAnalysisPanel extends HTMLElement {
                   </tr>
                 </thead>
                 <tbody>
-                  ${Object.entries(nutrition.normalized).map(([key, val]) => {
+                  ${normEntries.map(([key, rawVal]) => {
                     const label = key.replace(/_g_100g|_mg_100g|_kcal_100g/g, '').replace(/_/g, ' ').toUpperCase();
                     const unit = key.includes('_mg_') ? 'mg' : key.includes('_kcal_') ? 'kcal' : 'g';
+                    const val = Number(rawVal) || 0;
                     let status = 'Standard';
                     if (key.includes('sugar') && val > 15) status = 'Elevated';
                     if (key.includes('saturated') && val > 5) status = 'Elevated';
@@ -229,7 +299,7 @@ export class FgAnalysisPanel extends HTMLElement {
               Ingredients parsed and normalized from the product declaration. Click on highlighted additives for regulatory background.
             </p>
             <div style="display: flex; flex-wrap: wrap; gap: 8px; line-height: 1.8;">
-              ${ingredients.map(ing => `
+              ${ingredients.map((ing: any) => `
                 <span style="
                   display: inline-flex;
                   align-items: center;
@@ -237,12 +307,12 @@ export class FgAnalysisPanel extends HTMLElement {
                   padding: 4px 10px;
                   border-radius: 8px;
                   font-size: 12px;
-                  ${ing.is_additive 
+                  ${ing?.is_additive 
                     ? 'background: #fef3c7; color: #92400e; border: 1px solid #fde68a; font-weight: 600;' 
                     : 'background: #f1f5f9; color: #334155; border: 1px solid #e2e8f0;'};
                 ">
-                  ${ing.name}
-                  ${ing.code ? `<span style="font-size: 10px; background: rgba(0,0,0,0.06); padding: 1px 4px; border-radius: 4px;">${ing.code}</span>` : ''}
+                  ${ing?.name || ing || ''}
+                  ${ing?.code ? `<span style="font-size: 10px; background: rgba(0,0,0,0.06); padding: 1px 4px; border-radius: 4px;">${ing.code}</span>` : ''}
                 </span>
               `).join('')}
             </div>
@@ -263,26 +333,30 @@ export class FgAnalysisPanel extends HTMLElement {
           <div>
             <h3 style="font-size: 15px; font-weight: 700; margin-bottom: 16px;">Detected Food Additives & E-Numbers</h3>
             <div style="display: flex; flex-direction: column; gap: 14px;">
-              ${additives.map(add => `
+              ${additives.map((add: any) => {
+                const inStatus = add?.regulatory_status?.india || 'unknown';
+                const euStatus = add?.regulatory_status?.eu || 'unknown';
+                return `
                 <div style="border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; background: #ffffff;">
                   <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
                     <div>
-                      <h4 style="font-size: 14px; font-weight: 700; color: #0f172a;">${add.name}</h4>
-                      <div style="font-size: 12px; color: #64748b;">Code: <strong>${add.code}</strong> ${add.ins_code ? `(INS ${add.ins_code})` : ''} • Class: ${add.functional_class}</div>
+                      <h4 style="font-size: 14px; font-weight: 700; color: #0f172a;">${add?.name || 'Additive'}</h4>
+                      <div style="font-size: 12px; color: #64748b;">Code: <strong>${add?.code || 'N/A'}</strong> ${add?.ins_code ? `(INS ${add.ins_code})` : ''} • Class: ${add?.functional_class || 'General'}</div>
                     </div>
                     <div style="display: flex; gap: 6px;">
-                      <span class="fg-status-tag fg-status-${add.regulatory_status.india || 'unknown'}">IN: ${add.regulatory_status.india || 'unknown'}</span>
-                      <span class="fg-status-tag fg-status-${add.regulatory_status.eu || 'unknown'}">EU: ${add.regulatory_status.eu || 'unknown'}</span>
+                      <span class="fg-status-tag fg-status-${inStatus}">IN: ${inStatus}</span>
+                      <span class="fg-status-tag fg-status-${euStatus}">EU: ${euStatus}</span>
                     </div>
                   </div>
-                  <p style="font-size: 12px; color: #475569; margin-bottom: 8px;">${add.description || 'Recognized food additive.'}</p>
-                  ${add.comparison_summary ? `
+                  <p style="font-size: 12px; color: #475569; margin-bottom: 8px;">${add?.description || 'Recognized food additive.'}</p>
+                  ${add?.comparison_summary ? `
                     <div style="font-size: 11px; background: #f8fafc; border-left: 3px solid #64748b; padding: 6px 10px; border-radius: 4px; color: #334155;">
                       ⚖️ <strong>Regulatory comparison</strong>: ${add.comparison_summary}
                     </div>
                   ` : ''}
                 </div>
-              `).join('')}
+              `;
+              }).join('')}
             </div>
           </div>
         `;
@@ -304,18 +378,18 @@ export class FgAnalysisPanel extends HTMLElement {
                   </tr>
                 </thead>
                 <tbody>
-                  ${additives.map(add => {
-                    const inRule = regulatory_comparison.india.find(r => r.rules.some(x => x.regulation.includes('FSSAI') && x.conditions));
-                    const euRule = regulatory_comparison.eu.find(r => r.rules.some(x => x.regulation.includes('1333') || x.regulation.includes('EU')));
+                  ${additives.map((add: any) => {
+                    const inStatus = add?.regulatory_status?.india || 'unknown';
+                    const euStatus = add?.regulatory_status?.eu || 'unknown';
                     return `
                       <tr>
-                        <td><strong>${add.name} (${add.code})</strong></td>
+                        <td><strong>${add?.name || 'Additive'} (${add?.code || 'N/A'})</strong></td>
                         <td>
-                          <span class="fg-status-tag fg-status-${add.regulatory_status.india || 'unknown'}">${add.regulatory_status.india}</span>
+                          <span class="fg-status-tag fg-status-${inStatus}">${inStatus}</span>
                           <div style="font-size: 11px; color: #64748b; margin-top: 4px;">FSSAI Standards</div>
                         </td>
                         <td>
-                          <span class="fg-status-tag fg-status-${add.regulatory_status.eu || 'unknown'}">${add.regulatory_status.eu}</span>
+                          <span class="fg-status-tag fg-status-${euStatus}">${euStatus}</span>
                           <div style="font-size: 11px; color: #64748b; margin-top: 4px;">Reg. (EC) No 1333/2008</div>
                         </td>
                       </tr>
@@ -340,11 +414,11 @@ export class FgAnalysisPanel extends HTMLElement {
             </p>
             <div style="display: flex; flex-direction: column; gap: 12px;">
               <div style="padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px;">
-                <div style="font-weight: 700; font-size: 13px;">Regulatory Knowledge Snapshot: ${rules.regulatory_version}</div>
+                <div style="font-weight: 700; font-size: 13px;">Regulatory Knowledge Snapshot: ${rules?.regulatory_version || '2026-08'}</div>
                 <div style="font-size: 12px; color: #64748b;">Consolidated FSSAI Standards & EU EUR-Lex Regulations</div>
               </div>
               <div style="padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px;">
-                <div style="font-weight: 700; font-size: 13px;">Scoring Methodology: Version ${rules.scoring_version}</div>
+                <div style="font-weight: 700; font-size: 13px;">Scoring Methodology: Version ${rules?.scoring_version || '1.0'}</div>
                 <div style="font-size: 12px; color: #64748b;">Weights: Nutrition 40%, Additives 20%, Regulatory 20%, Transparency 10%, Allergens 10%</div>
               </div>
               <h4 style="font-size: 13px; font-weight: 600; margin-top: 8px;">Official Evidence Links:</h4>

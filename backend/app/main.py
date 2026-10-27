@@ -74,6 +74,21 @@ async def root():
     }
 
 
+@app.get("/health", tags=["Health"])
+async def health_root():
+    return {"status": "ok", "database": "ok", "rules_engine": "ok", "version": "1.0.0"}
+
+
+@app.get("/v1/models", tags=["Compatibility"])
+async def v1_models_root():
+    return {"object": "list", "data": []}
+
+
+@app.get("/api/v1/models", tags=["Compatibility"])
+async def v1_models_api():
+    return {"object": "list", "data": []}
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("app.main:app", host=settings.API_HOST, port=settings.API_PORT, reload=settings.DEBUG)

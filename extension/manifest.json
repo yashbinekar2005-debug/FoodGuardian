@@ -10,7 +10,8 @@
   },
   "permissions": [
     "storage",
-    "activeTab"
+    "activeTab",
+    "scripting"
   ],
   "host_permissions": [
     "https://*.amazon.in/*",
@@ -27,8 +28,6 @@
     "https://swiggy.com/*",
     "https://*.jiomart.com/*",
     "https://jiomart.com/*",
-    "http://localhost:8000/*",
-    "http://127.0.0.1:8000/*",
     "http://localhost/*",
     "http://127.0.0.1/*"
   ],
@@ -53,11 +52,8 @@
         "https://swiggy.com/*",
         "https://*.jiomart.com/*",
         "https://jiomart.com/*",
-        "http://localhost:*/*",
         "http://localhost/*",
-        "http://127.0.0.1:*/*",
-        "http://127.0.0.1/*",
-        "file:///*"
+        "http://127.0.0.1/*"
       ],
       "js": ["content.js"],
       "run_at": "document_idle"

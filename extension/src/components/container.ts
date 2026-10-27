@@ -21,39 +21,56 @@ export class FoodGuardianRoot extends HTMLElement {
     styleSheet.textContent = COMPONENT_STYLES;
     this.shadow.appendChild(styleSheet);
 
-    this.shadow.addEventListener('open-details', () => {
+    const handleOpen = (e: Event) => {
+      e.stopPropagation();
       this.showDetailsModal();
-    });
-
-    this.shadow.addEventListener('close-details', () => {
+    };
+    const handleClose = (e: Event) => {
+      e.stopPropagation();
       this.hideDetailsModal();
-    });
-
-    this.shadow.addEventListener('dismiss-card', () => {
+    };
+    const handleDismiss = (e: Event) => {
+      e.stopPropagation();
       if (this.ratingCard) {
         this.ratingCard.style.display = 'none';
       }
-    });
+    };
+
+    this.shadow.addEventListener('open-details', handleOpen);
+    this.shadow.addEventListener('close-details', handleClose);
+    this.shadow.addEventListener('dismiss-card', handleDismiss);
+
+    this.addEventListener('open-details', handleOpen);
+    this.addEventListener('close-details', handleClose);
+    this.addEventListener('dismiss-card', handleDismiss);
   }
 
   showData(data: AnalyzeResponse) {
-    this.currentData = data;
+    try {
+      this.currentData = data;
 
-    if (!this.ratingCard) {
-      this.ratingCard = document.createElement('fg-rating-card') as FgRatingCard;
-      this.shadow.appendChild(this.ratingCard);
+      if (!this.ratingCard) {
+        this.ratingCard = document.createElement('fg-rating-card') as FgRatingCard;
+        this.shadow.appendChild(this.ratingCard);
+      }
+      this.ratingCard.style.display = 'block';
+      (this.ratingCard as any).data = data;
+    } catch (err) {
+      console.error('[FoodGuardian][container] showData error:', err);
     }
-    this.ratingCard.style.display = 'block';
-    this.ratingCard.data = data;
   }
 
   showDetailsModal() {
-    if (!this.currentData) return;
-    if (!this.analysisPanel) {
-      this.analysisPanel = document.createElement('fg-analysis-panel') as FgAnalysisPanel;
-      this.shadow.appendChild(this.analysisPanel);
+    try {
+      if (!this.currentData) return;
+      if (!this.analysisPanel) {
+        this.analysisPanel = document.createElement('fg-analysis-panel') as FgAnalysisPanel;
+        this.shadow.appendChild(this.analysisPanel);
+      }
+      (this.analysisPanel as any).data = this.currentData;
+    } catch (err) {
+      console.error('[FoodGuardian][container] showDetailsModal error:', err);
     }
-    this.analysisPanel.data = this.currentData;
   }
 
   hideDetailsModal() {

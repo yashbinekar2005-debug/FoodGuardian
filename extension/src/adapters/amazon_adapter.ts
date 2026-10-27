@@ -50,7 +50,7 @@ export class AmazonAdapter implements SiteAdapter {
     const jsonLd = JsonLdExtractor.extract(root);
 
     // Title with multiple fallbacks
-    const titleEl = root.querySelector('#productTitle, #title, h1.a-size-large, h1#title, span#productTitle, h1[data-automation-id="product-title"], .product-title-word-break');
+    const titleEl = root.querySelector('#productTitle, #title, h1.a-size-large, h1#title, span#productTitle, h1[data-automation-id="product-title"], .product-title-word-break, #titleSection h1');
     const ogTitle = root.querySelector('meta[property="og:title"]')?.getAttribute('content');
     const twitterTitle = root.querySelector('meta[name="twitter:title"]')?.getAttribute('content');
     const rawDocTitle = typeof document !== 'undefined'
@@ -59,13 +59,17 @@ export class AmazonAdapter implements SiteAdapter {
     
     let name = titleEl?.textContent?.trim() || jsonLd?.name || ogTitle || twitterTitle || (rawDocTitle && !rawDocTitle.toLowerCase().includes('page not found') && rawDocTitle.length > 3 ? rawDocTitle : null);
     if (!name) return null;
+    // Clean up common Amazon title suffixes
+    name = name.replace(/\s*[:|\-]\s*Amazon\.[a-z.]+.*$/i, '').trim();
     name = name.replace(/\s+/g, ' ').trim();
+    if (name.length < 3) return null;
 
     // Brand
     const brandEl = root.querySelector('#bylineInfo, #brand, tr.po-brand td.po-break-word, a#bylineInfo, .po-brand .a-span9, #brand a, [data-brand-name]');
     let brand = brandEl?.textContent?.replace(/Brand:\s*|Visit the\s*|Store|from\s+/gi, '').trim() ||
                 root.querySelector('meta[property="product:brand"], meta[name="brand"]')?.getAttribute('content') ||
                 jsonLd?.brand || null;
+    if (brand) brand = brand.replace(/\s+/g, ' ').trim();
 
     // Category
     const breadcrumb = root.querySelector('#wayfinding-breadcrumbs_container, #breadcrumb');

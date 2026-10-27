@@ -7,7 +7,8 @@ export class PageMutationWatcher {
   private lastTitle: string = '';
   private onProductChangedCallback: () => void;
   private hasDetectedProduct: boolean = false;
-  private pollingTimers: any[] = [];
+  private pollingTimers: ReturnType<typeof setTimeout>[] = [];
+  private routePollTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(onProductChanged: () => void) {
     this.onProductChangedCallback = onProductChanged;
@@ -27,7 +28,7 @@ export class PageMutationWatcher {
       const urlChanged = currentUrl !== this.lastUrl;
       const titleChanged = currentTitle !== this.lastTitle && currentTitle.length > 0;
 
-      // Trigger if URL/title changed OR if product hasn't been successfully detected yet
+      // Trigger if URL/title changed OR if product hasn't been successfully detected yet.
       if (urlChanged || titleChanged || !this.hasDetectedProduct) {
         if (urlChanged || titleChanged) {
           logger.info('Detected dynamic product or route change. Re-analyzing page...');
@@ -59,6 +60,7 @@ export class PageMutationWatcher {
 
     // Also listen to SPA history pushState/replaceState & popstate
     window.addEventListener('popstate', () => debouncedCheck());
+    window.addEventListener('hashchange', () => debouncedCheck());
     
     try {
       const originalPushState = history.pushState;
@@ -81,7 +83,7 @@ export class PageMutationWatcher {
       // Ignore if history is restricted
     }
 
-    // Active polling fallback for dynamic hydrating SPAs (Blinkit, BigBasket, Amazon)
+    // Initial retries cover pages whose product content hydrates after document_idle.
     const checkDelays = [400, 1000, 2200, 4000];
     checkDelays.forEach(delay => {
       const timer = setTimeout(() => {
@@ -91,6 +93,12 @@ export class PageMutationWatcher {
       }, delay);
       this.pollingTimers.push(timer);
     });
+
+    // Some SPAs call pushState from the page's main world. The extension content
+    // script runs in an isolated world, so patching history there cannot observe
+    // those calls. Poll URL/title to reliably catch route changes without relying
+    // on the page to emit a DOM mutation.
+    this.routePollTimer = setInterval(() => debouncedCheck(), 600);
   }
 
   stop() {
@@ -100,5 +108,9 @@ export class PageMutationWatcher {
     }
     this.pollingTimers.forEach(t => clearTimeout(t));
     this.pollingTimers = [];
+    if (this.routePollTimer) {
+      clearInterval(this.routePollTimer);
+      this.routePollTimer = null;
+    }
   }
 }
