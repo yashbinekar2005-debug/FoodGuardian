@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     # Versions
     API_VERSION: str = "v1"
     REGULATORY_DATA_VERSION: str = "2026-08"
-    SCORING_METHODOLOGY_VERSION: str = "1.0"
+    SCORING_METHODOLOGY_VERSION: str = "2.0"
     LAST_REGULATORY_UPDATE: str = "2026-08-19"
     
     model_config = SettingsConfigDict(

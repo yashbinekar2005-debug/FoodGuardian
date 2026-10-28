@@ -53,6 +53,7 @@ export class FgRatingCard extends HTMLElement {
       case 'D': return 'Multiple attention factors';
       case 'E': return 'Significant factors identified';
       case 'F': return 'Highest concern level';
+      case 'NR': return 'Ingredient list needed to rate';
       default: return 'Analyzed';
     }
   }
@@ -81,7 +82,8 @@ export class FgRatingCard extends HTMLElement {
       const summary = data.summary || {};
       const additives = Array.isArray(data.additives) ? data.additives : [];
       const nutrition = data.nutrition || {};
-      const grade = rating.grade || 'C';
+      const ratingAvailable = rating.rating_available !== false;
+      const grade = rating.grade || 'NR';
       const gradeClass = `fg-grade-${grade}`;
       const desc = this.getGradeDescription(grade);
       const score = typeof rating.score === 'number' ? Math.round(rating.score) : 0;
@@ -95,7 +97,7 @@ export class FgRatingCard extends HTMLElement {
       if (recognized > 0) {
         insights.push(`ℹ️ ${recognized} additive${recognized > 1 ? 's' : ''} detected`);
       } else {
-        insights.push(`✓ No artificial additives detected`);
+        insights.push(`ℹ️ No listed additives identified; this alone does not show the product is healthy`);
       }
       if (nutrition.available) {
         insights.push(`✓ Nutrition facts verified`);
@@ -122,7 +124,7 @@ export class FgRatingCard extends HTMLElement {
                 <div class="fg-grade-pill ${gradeClass}">${grade}</div>
                 <div class="fg-rating-meta">
                   <span class="fg-rating-title">FoodGuardian Rating</span>
-                  <span class="fg-rating-subtitle">${desc} (Score: ${score})</span>
+                  <span class="fg-rating-subtitle">${ratingAvailable ? `${desc} (Score: ${score})` : desc}</span>
                 </div>
               </div>
 

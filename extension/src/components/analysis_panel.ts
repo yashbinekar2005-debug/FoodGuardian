@@ -84,6 +84,7 @@ export class FgAnalysisPanel extends HTMLElement {
       const rules = data.rules || {};
 
       const grade = rating.grade || 'C';
+      const ratingAvailable = rating.rating_available !== false;
       const gradeClass = `fg-grade-${grade}`;
       const confidence = typeof rating.confidence === 'number' ? rating.confidence : 0;
       const confidenceLabel = confidence >= 0.85 ? 'High confidence' : confidence >= 0.60 ? 'Moderate confidence' : 'Low confidence';
@@ -102,7 +103,7 @@ export class FgAnalysisPanel extends HTMLElement {
                     ${displayName}
                   </h2>
                   <div style="display: flex; gap: 8px; font-size: 12px; color: #64748b;">
-                    <span>Score: <strong>${score}/100</strong></span>
+                    <span>${ratingAvailable ? `Score: <strong>${score}/100</strong>` : 'Rating unavailable: ingredient list needed'}</span>
                     <span>•</span>
                     <span>${confidenceLabel}</span>
                     ${product.brand ? `<span>• Brand: ${product.brand}</span>` : ''}
@@ -178,7 +179,7 @@ export class FgAnalysisPanel extends HTMLElement {
                 <div style="font-size: 12px; color: #64748b;">Additives Detected</div>
               </div>
               <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; text-align: center;">
-                <div style="font-size: 20px; font-weight: 800; color: #0f172a;">${typeof rating.score === 'number' ? Math.round(rating.score) : 0}</div>
+              <div style="font-size: 20px; font-weight: 800; color: #0f172a;">${rating.rating_available === false ? '—' : (typeof rating.score === 'number' ? Math.round(rating.score) : 0)}</div>
                 <div style="font-size: 12px; color: #64748b;">FoodGuardian Score</div>
               </div>
             </div>
@@ -195,8 +196,8 @@ export class FgAnalysisPanel extends HTMLElement {
                   ℹ️ <strong>Food Additives</strong>: ${additives.map((a: any) => `${a?.name || 'Additive'} (${a?.code || ''})`).join(', ')}.
                 </div>
               ` : `
-                <div style="padding: 10px 14px; background: #f0fdf4; border-left: 4px solid #16a34a; border-radius: 6px; font-size: 13px;">
-                  ✓ <strong>Clean Formulation</strong>: No synthetic additives or preservatives identified.
+                <div style="padding: 10px 14px; background: #f8fafc; border-left: 4px solid #64748b; border-radius: 6px; font-size: 13px;">
+                  ℹ️ <strong>No listed additives identified</strong>: This alone does not establish that a product is healthy.
                 </div>
               `}
               ${(regIndia.some((r: any) => r?.status === 'not_authorized') || regEu.some((r: any) => r?.status === 'not_authorized')) ? `
@@ -213,7 +214,7 @@ export class FgAnalysisPanel extends HTMLElement {
           <div>
             <h3 style="font-size: 15px; font-weight: 700; margin-bottom: 6px;">Why This Rating?</h3>
             <p style="font-size: 13px; color: #64748b; margin-bottom: 16px;">
-              FoodGuardian calculates scores using a deterministic 5-factor model evaluating nutrition, additives, cross-jurisdiction regulatory alignment, transparency, and allergens.
+              A declared ingredient list is required. Nutrition values and explicit regulatory restrictions or required warnings can change the score. Additive presence alone is not treated as harmful; missing or unresolved data lowers confidence.
             </p>
             <div style="display: flex; flex-direction: column; gap: 10px;">
               ${factors.map((f: any) => {
@@ -419,7 +420,7 @@ export class FgAnalysisPanel extends HTMLElement {
               </div>
               <div style="padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px;">
                 <div style="font-weight: 700; font-size: 13px;">Scoring Methodology: Version ${rules?.scoring_version || '1.0'}</div>
-                <div style="font-size: 12px; color: #64748b;">Weights: Nutrition 40%, Additives 20%, Regulatory 20%, Transparency 10%, Allergens 10%</div>
+                <div style="font-size: 12px; color: #64748b;">Ingredient list required; only observed nutrition values and explicit regulatory restrictions or required warnings change the score.</div>
               </div>
               <h4 style="font-size: 13px; font-weight: 600; margin-top: 8px;">Official Evidence Links:</h4>
               <ul style="padding-left: 20px; font-size: 12px; color: #2563eb; display: flex; flex-direction: column; gap: 6px;">

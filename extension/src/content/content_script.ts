@@ -37,14 +37,16 @@ function renderAnalysis(analysis: AnalyzeResponse) {
       .actions { display:flex; gap:6px; } button { cursor:pointer; border:0; border-radius:6px; padding:4px 8px; color:#334155; background:#e2e8f0; font:inherit; }
       .details { margin-top:12px; padding-top:10px; border-top:1px solid #e2e8f0; color:#475569; font-size:12px; white-space:pre-wrap; }
       .grade-A { background:#16a34a; } .grade-B { background:#65a30d; } .grade-C { background:#d97706; } .grade-D { background:#ea580c; } .grade-E { background:#dc2626; } .grade-F { background:#991b1b; }
+      .grade-NR { background:#64748b; font-size:16px; }
     </style>
     <section class="fg-card" aria-label="FoodGuardian product rating">
-      <header class="header"><span>🛡 FoodGuardian</span><div class="actions"><button id="fg-details" type="button">Details</button><button id="fg-close" type="button" aria-label="Dismiss">×</button></div></header>
+      <header class="header"><span>🛡 FoodGuardian</span><div class="actions"><button id="fg-details" type="button">Why this rating?</button><button id="fg-close" type="button" aria-label="Dismiss">×</button></div></header>
       <div class="body"><div class="row"><div class="grade" id="fg-grade"></div><div><div class="title" id="fg-title"></div><div class="score" id="fg-score"></div></div></div><div class="details" id="fg-details-content" hidden></div></div>
     </section>`;
 
   const data = analysis as any;
-  const grade = typeof data.rating?.grade === 'string' ? data.rating.grade : 'C';
+  const ratingAvailable = data.rating?.rating_available !== false;
+  const grade = typeof data.rating?.grade === 'string' ? data.rating.grade : 'NR';
   const productName = data.product?.name || 'Food product';
   const score = typeof data.rating?.score === 'number' ? Math.round(data.rating.score) : 0;
   const ingredientText = typeof data.product?.ingredients_text === 'string'
@@ -58,12 +60,27 @@ function renderAnalysis(analysis: AnalyzeResponse) {
   const titleElement = shadow.getElementById('fg-title');
   if (titleElement) titleElement.textContent = productName;
   const scoreElement = shadow.getElementById('fg-score');
-  if (scoreElement) scoreElement.textContent = `FoodGuardian score: ${score}/100`;
+  if (scoreElement) {
+    const confidence = typeof data.rating?.confidence === 'number' ? Math.round(data.rating.confidence * 100) : 0;
+    scoreElement.textContent = ratingAvailable
+      ? `FoodGuardian score: ${score}/100 · ${confidence}% data confidence`
+      : 'Rating unavailable: ingredient list needed';
+  }
 
   shadow.getElementById('fg-details')?.addEventListener('click', () => {
     const details = shadow.getElementById('fg-details-content');
     if (!details) return;
-    details.textContent = `Ingredients:\n${ingredientText}`;
+    const factors = Array.isArray(data.factors) ? data.factors : [];
+    const explanations = factors.map((factor: any) => {
+      const delta = typeof factor.score_delta === 'number' && factor.score_delta !== 0
+        ? ` (${factor.score_delta > 0 ? '+' : ''}${factor.score_delta} points)`
+        : '';
+      return `• ${factor.factor_name || 'Rating factor'}${delta}\n  ${factor.reason || ''}${factor.evidence ? `\n  Evidence: ${factor.evidence}` : ''}`;
+    });
+    const listedIngredients = Array.isArray(data.ingredients)
+      ? data.ingredients.map((ingredient: any) => ingredient.name).filter(Boolean).join(', ')
+      : '';
+    details.textContent = `${ratingAvailable ? 'Why this rating?' : 'Why no rating?'}\n${explanations.join('\n\n') || 'No scoring factors were returned.'}\n\nIngredients analyzed:\n${listedIngredients || ingredientText}`;
     details.hidden = !details.hidden;
   });
   shadow.getElementById('fg-close')?.addEventListener('click', () => hostRoot?.remove());

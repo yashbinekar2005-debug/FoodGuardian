@@ -137,6 +137,7 @@ export const COMPONENT_STYLES = `
 .fg-grade-D { background: var(--fg-grade-d); }
 .fg-grade-E { background: var(--fg-grade-e); }
 .fg-grade-F { background: var(--fg-grade-f); }
+.fg-grade-NR { background: #64748b; font-size: 14px; }
 
 .fg-rating-meta {
   display: flex;

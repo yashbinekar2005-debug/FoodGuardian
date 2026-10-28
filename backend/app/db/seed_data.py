@@ -86,15 +86,14 @@ RULE_VERSIONS = [
 SCORING_METHODOLOGIES = [
     {
         "id": "00000000-0000-0000-0000-000000000020",
-        "version": "1.0",
-        "name": "FoodGuardian Explainable 5-Factor Scoring Methodology",
-        "description": "Deterministic scoring evaluating Nutrition (40%), Additives (20%), Regulatory alignment (20%), Ingredient transparency (10%), and Declared allergens (10%).",
+        "version": "2.0",
+        "name": "FoodGuardian Ingredient Evidence Scoring Methodology",
+        "description": "Ingredient list is required. Scores use observed nutrition values and explicit regulatory restrictions or required warnings; additive presence alone is not penalized. Unresolved tokens reduce confidence rather than implying harm.",
         "weights": json.dumps({
-            "nutrition": 0.40,
-            "additives": 0.20,
-            "regulatory": 0.20,
-            "transparency": 0.10,
-            "allergens": 0.10
+            "baseline_score": 70,
+            "nutrition_delta_range": [-25, 20],
+            "regulatory_delta_range": [-20, 0],
+            "ingredient_list_required": True
         }),
         "thresholds": json.dumps({
             "A": [90, 100],

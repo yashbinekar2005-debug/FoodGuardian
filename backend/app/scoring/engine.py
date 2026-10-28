@@ -4,8 +4,9 @@ from app.schemas.scoring import ScoreRating, ScoringFactor
 
 class ScoringEngine:
     """
-    Deterministic FoodGuardian 5-factor scoring engine v1.0.
-    Produces reproducible 0-100 score, A-F grade, confidence, and factor explainability.
+    Deterministic ingredient-evidence scoring engine v2.0.
+    An ingredient list is required; scores are adjusted only by observed nutrition
+    and explicit regulatory evidence. Additive presence alone is not treated as harm.
     """
 
     GRADE_THRESHOLDS = [
@@ -29,12 +30,34 @@ class ScoringEngine:
     ) -> Tuple[ScoreRating, List[ScoringFactor]]:
         factors: List[ScoringFactor] = []
 
-        base_score = 70.0  # Neutral baseline
+        if ingredients_count <= 0:
+            factors.append(ScoringFactor(
+                factor_id="rating_missing_ingredients",
+                factor_name="Rating unavailable: ingredient list missing",
+                impact="neutral",
+                weight=1.0,
+                score_delta=0.0,
+                reason="A product cannot receive an ingredient-based rating until its declared ingredient list is available.",
+                evidence="No ingredient tokens were provided for analysis"
+            ))
+            return ScoreRating(grade="NR", score=0.0, confidence=0.0, rating_available=False), factors
+
+        base_score = 70.0
         total_delta = 0.0
+        factors.append(ScoringFactor(
+            factor_id="ingredient_list_present",
+            factor_name="Declared ingredient list analyzed",
+            impact="neutral",
+            weight=1.0,
+            score_delta=0.0,
+            reason=f"The rating is grounded in {ingredients_count} ingredient entries found on the product label.",
+            evidence=f"{ingredients_count} ingredient entries analyzed"
+        ))
 
         # ==========================================
-        # 1. Nutrition Component (Weight 40%)
+        # 1. Nutrition evidence from the declared panel
         # ==========================================
+        nutrition_factor_start = len(factors)
         nut_delta = 0.0
         if nutrition_analysis.get("available"):
             # Positive nutrition factors
@@ -73,55 +96,41 @@ class ScoringEngine:
                 evidence="No nutrition panel detected"
             ))
 
-        # Clamp nutrition delta to [-25, +20]
+        # Nutrition label values are direct, measurable evidence; ingredient
+        # names alone do not establish that an additive is harmful.
+        raw_nut_delta = nut_delta
         nut_delta = max(-25.0, min(20.0, nut_delta))
+        if raw_nut_delta and raw_nut_delta != nut_delta:
+            scale = nut_delta / raw_nut_delta
+            nutrition_factors = factors[nutrition_factor_start:]
+            for factor in nutrition_factors:
+                factor.score_delta = round(factor.score_delta * scale, 1)
+            if nutrition_factors:
+                nutrition_factors[-1].score_delta = round(
+                    nutrition_factors[-1].score_delta + nut_delta - sum(f.score_delta for f in nutrition_factors), 1
+                )
         total_delta += nut_delta
 
         # ==========================================
-        # 2. Additive Component (Weight 20%)
+        # 2. Additive evidence: presence is reported, not automatically penalized.
         # ==========================================
         add_delta = 0.0
-        if not additives_detected:
-            add_delta += 8.0
-            factors.append(ScoringFactor(
-                factor_id="add_none",
-                factor_name="+ No Artificial Additives",
-                impact="positive",
-                weight=0.20,
-                score_delta=8.0,
-                reason="No synthetic food additives or E-numbers identified.",
-                evidence="Full ingredient list verified"
-            ))
-        else:
+        if additives_detected:
             additive_names = [a.get("name", "Unknown") for a in additives_detected]
-            num_additives = len(additives_detected)
-
-            # Benign vs high concern additives
-            has_colour = any("colour" in a.get("functional_classes", "") for a in additives_detected)
-            has_preservative = any("preservative" in a.get("functional_classes", "") for a in additives_detected)
-            has_sweetener = any("sweetener" in a.get("functional_classes", "") for a in additives_detected)
-
-            penalty = num_additives * 3.0
-            if has_colour:
-                penalty += 4.0
-            if has_sweetener:
-                penalty += 4.0
-
-            add_delta = -min(20.0, penalty)
             factors.append(ScoringFactor(
-                factor_id="add_detected",
-                factor_name=f"- {num_additives} Additives Identified",
-                impact="negative",
-                weight=0.20,
-                score_delta=add_delta,
-                reason=f"Identified {num_additives} food additives: {', '.join(additive_names[:4])}.",
-                evidence=f"Detected additives: {', '.join(additive_names)}"
+                factor_id="additives_identified",
+                factor_name=f"{len(additive_names)} declared additive(s) identified",
+                impact="neutral",
+                weight=1.0,
+                score_delta=0.0,
+                reason="Additive presence alone does not lower the rating; only explicit regulatory restrictions or label warnings affect the score.",
+                evidence=f"Detected: {', '.join(additive_names)}"
             ))
 
         total_delta += add_delta
 
         # ==========================================
-        # 3. Regulatory Alignment Component (Weight 20%)
+        # 3. Explicit regulatory restrictions and required warnings
         # ==========================================
         reg_delta = 0.0
         divergences = 0
@@ -136,72 +145,42 @@ class ScoringEngine:
                 banned_in_eu += 1
             if "warning" in eu_info.get("labelling", "").lower() or "warning" in in_info.get("labelling", "").lower():
                 warnings_required += 1
-            if in_info.get("status") != eu_info.get("status"):
-                divergences += 1
-
         if banned_in_eu > 0:
-            reg_delta -= (banned_in_eu * 15.0)
+            reg_delta = max(-20.0, -(banned_in_eu * 15.0))
             factors.append(ScoringFactor(
                 factor_id="reg_eu_restriction",
                 factor_name="- EU Regulatory Divergence",
                 impact="negative",
                 weight=0.20,
-                score_delta=-15.0,
-                reason="Contains ingredient not authorized for food use in the European Union.",
+                score_delta=reg_delta,
+                reason=f"{banned_in_eu} detected ingredient(s) are marked not authorized in the EU comparison used for this analysis.",
                 evidence="EU Regulation 1333/2008 / Commission Regulation 2022/63"
             ))
         elif warnings_required > 0:
-            reg_delta -= (warnings_required * 6.0)
+            reg_delta = max(-20.0, -(warnings_required * 6.0))
             factors.append(ScoringFactor(
                 factor_id="reg_warning_mandatory",
                 factor_name="- Mandatory Advisory Warning",
                 impact="negative",
                 weight=0.10,
-                score_delta=-6.0,
+                score_delta=reg_delta,
                 reason="Jurisdiction requires special advisory warning on label (e.g. child attention/MSG/phenylalanine).",
                 evidence="Annex V EC 1333/2008 / FSSAI Labelling Regulation"
             ))
-        elif additives_detected and divergences == 0:
-            reg_delta += 5.0
+        elif regulatory_evaluations:
             factors.append(ScoringFactor(
-                factor_id="reg_concordance",
-                factor_name="+ Cross-Jurisdiction Alignment",
-                impact="positive",
-                weight=0.20,
-                score_delta=5.0,
-                reason="All detected additives are authorized under both FSSAI and European Union food frameworks.",
-                evidence="FSSAI Compendium & EU Union List"
+                factor_id="reg_no_explicit_concern",
+                factor_name="No explicit restriction or warning found",
+                impact="neutral",
+                weight=0.0,
+                score_delta=0.0,
+                reason="The compared records did not identify a restriction or required warning. This does not establish that the product is healthy.",
+                evidence="Regulatory comparison for detected additives"
             ))
-
-        reg_delta = max(-20.0, min(10.0, reg_delta))
         total_delta += reg_delta
 
-        # ==========================================
-        # 4. Transparency & Allergens (Weight 20%)
-        # ==========================================
-        if ingredients_count > 0:
-            if unknown_ingredients_count == 0:
-                total_delta += 4.0
-                factors.append(ScoringFactor(
-                    factor_id="transparency_high",
-                    factor_name="+ Full Ingredient Transparency",
-                    impact="positive",
-                    weight=0.10,
-                    score_delta=4.0,
-                    reason="All listed ingredients were cleanly tokenized and resolved.",
-                    evidence=f"{ingredients_count} ingredients parsed successfully"
-                ))
-            else:
-                total_delta -= 3.0
-                factors.append(ScoringFactor(
-                    factor_id="transparency_partial",
-                    factor_name="- Unrecognized Ingredient Tokens",
-                    impact="negative",
-                    weight=0.10,
-                    score_delta=-3.0,
-                    reason=f"{unknown_ingredients_count} ingredient tokens could not be definitively matched.",
-                    evidence="Unmatched raw tokens"
-                ))
+        # Unresolved tokens reduce confidence, not product health score: a
+        # database lookup failure is not evidence that an ingredient is harmful.
 
         # Final score calculation
         final_score = round(max(0.0, min(100.0, base_score + total_delta)), 1)
@@ -221,7 +200,7 @@ class ScoringEngine:
             unknown_ratio=unknown_ingredients_count / max(1, ingredients_count)
         )
 
-        return ScoreRating(grade=grade, score=final_score, confidence=confidence), factors
+        return ScoreRating(grade=grade, score=final_score, confidence=confidence, rating_available=True), factors
 
     @staticmethod
     def _calculate_confidence(

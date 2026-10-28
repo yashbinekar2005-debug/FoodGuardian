@@ -51,11 +51,14 @@ document.addEventListener('DOMContentLoaded', () => {
     emptyState.style.display = 'none';
     analyzedCard.style.display = 'block';
 
+    const available = data.rating.rating_available !== false;
     const grade = data.rating.grade;
     gradeBadge.textContent = grade;
     gradeBadge.className = `grade-badge grade-${grade}`;
     productTitle.textContent = data.product.name.slice(0, 50) + (data.product.name.length > 50 ? '...' : '');
-    productScore.textContent = `FoodGuardian Score: ${Math.round(data.rating.score)} / 100`;
+    productScore.textContent = available
+      ? `FoodGuardian Score: ${Math.round(data.rating.score)} / 100`
+      : 'Rating unavailable: ingredient list needed';
 
     btnOpenPanel.addEventListener('click', () => {
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {

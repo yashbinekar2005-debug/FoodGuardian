@@ -92,9 +92,10 @@ export interface ScoringFactor {
 }
 
 export interface ScoreRating {
-  grade: 'A' | 'B' | 'C' | 'D' | 'E' | 'F';
+  grade: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'NR';
   score: number;
   confidence: number;
+  rating_available: boolean;
 }
 
 export interface AnalysisSummary {
