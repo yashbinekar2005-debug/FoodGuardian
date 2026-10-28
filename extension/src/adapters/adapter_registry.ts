@@ -2,6 +2,7 @@ import { SiteAdapter } from './site_adapter';
 import { AmazonAdapter } from './amazon_adapter';
 import { BigBasketAdapter } from './bigbasket_adapter';
 import { BlinkitAdapter } from './blinkit_adapter';
+import { FlipkartAdapter } from './flipkart_adapter';
 import { GenericAdapter } from './generic_adapter';
 
 export class AdapterRegistry {
@@ -9,6 +10,7 @@ export class AdapterRegistry {
     new AmazonAdapter(),
     new BigBasketAdapter(),
     new BlinkitAdapter(),
+    new FlipkartAdapter(),
     new GenericAdapter() // Always last as fallback
   ];
 

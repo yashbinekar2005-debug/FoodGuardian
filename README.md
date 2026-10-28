@@ -7,12 +7,13 @@
 
 ## 1. System Overview
 
-**FoodGuardian** is an explainable food-intelligence layer embedded directly into online grocery platforms (Amazon India, BigBasket, Blinkit, and compatible e-commerce stores).
+**FoodGuardian** is an explainable food-intelligence layer embedded directly into online grocery platforms (Amazon India, BigBasket, Blinkit, Flipkart, and compatible e-commerce stores).
 
 Without requiring physical barcode scanning, FoodGuardian automatically extracts public product information, normalizes ingredients and additive codes (such as INS 330, E110, INS 621), benchmarks nutrition against WHO and FSSAI standards, and performs **category-aware regulatory comparisons between Indian and European Union standards** with complete source traceability.
 
 ### Core Capabilities
-* **Multi-Level Product Data Extraction**: Site adapters for Amazon, BigBasket, Blinkit, and generic JSON-LD/schema.org fallback with recursive DOM structural inspection.
+* **Multi-Level Product Data Extraction**: Site adapters for Amazon, BigBasket, Blinkit, Flipkart, and generic JSON-LD/schema.org fallback with recursive DOM structural inspection.
+* **Local Package-Image OCR**: When ingredient text is absent from the page DOM, a bundled Tesseract WebAssembly model reads product-gallery images on-device.
 * **Ingredient Normalization**: Tokenizes complex declarations, nested parentheses, percentages, and functional prefixes.
 * **Additive Intelligence**: Automatically identifies E-numbers, INS codes, and common chemical names with functional categories.
 * **Nutrition Profiling**: Analyzes sugars, saturated fat, sodium/salt, fiber, and protein per 100g.
@@ -26,7 +27,7 @@ Without requiring physical barcode scanning, FoodGuardian automatically extracts
 
 ```text
                   E-COMMERCE WEBPAGE
-          (Amazon India, BigBasket, Blinkit)
+          (Amazon India, BigBasket, Blinkit, Flipkart)
                           │
                           ▼
             ┌───────────────────────────┐
@@ -34,6 +35,7 @@ Without requiring physical barcode scanning, FoodGuardian automatically extracts
             │                           │
             │ • Site Adapters           │
             │ • JSON-LD & DOM Extractor │
+            │ • Local package-image OCR│
             │ • Active Route/DOM Watcher│
             │ • IIFE Content Bundle     │
             └─────────────┬─────────────┘
@@ -84,7 +86,7 @@ Without requiring physical barcode scanning, FoodGuardian automatically extracts
 
 ## 3. Multi-Level Extraction & Real-Website Resilience
 
-Real e-commerce platforms (Amazon, BigBasket, Blinkit) present dynamic challenges that FoodGuardian resolves across 6 distinct levels:
+Real e-commerce platforms (Amazon, BigBasket, Blinkit, Flipkart) present dynamic challenges that FoodGuardian resolves across 7 distinct levels:
 
 | Level | Component | Challenge in Real E-Commerce | FoodGuardian Solution |
 | :--- | :--- | :--- | :--- |
@@ -93,7 +95,8 @@ Real e-commerce platforms (Amazon, BigBasket, Blinkit) present dynamic challenge
 | **Level 3** | **SPA Navigation** | Modern grocery apps use React/Next.js client-side navigation. `history.pushState` monkey-patching in isolated worlds does not trigger extension hooks. | **Dual Polling & Worker Sync**: Background service worker listens to `chrome.tabs.onUpdated` and the content watcher polls active URL/DOM mutations every 600ms. |
 | **Level 4** | **DOM Parsing** | Real product listings often omit colons after `Ingredients` (e.g. `<th>Ingredients</th><td>...</td>` or `<h4>Ingredients</h4><p>...</p>`). | **Structural DOM Scanner**: `scanDomForIngredients` and `scanDomForNutrition` deeply inspect table headers/cells, definition lists (`<dt>/<dd>`), and adjacent sibling text. |
 | **Level 5** | **Backend CORS** | Requests sent from `https://www.amazon.in` send marketplace origin headers that fail standard local CORS checks. | **Universal CORS & Preflight Exemption**: FastAPI `CORSMiddleware` configured with `allow_origin_regex=r".*"` and preflight `OPTIONS` requests exempted from rate limits. |
-| **Level 6** | **Lazy-Loaded Specs** | Certain products load ingredients only after clicking "See More" or "Product Information". | **Manual Re-Scan Trigger**: Extension popup provides an instant `⚡ Re-scan Current Page` button to re-run extraction at any point. |
+| **Level 6** | **Lazy-Loaded Specs** | Product text or gallery images can appear after the initial page load. | **Mutation-Aware Re-Scan**: The extension watches the page and gallery image attributes while product details hydrate. |
+| **Level 7** | **Ingredients Printed on Packaging** | Product images may show ingredients when the page has no readable text. | **Local OCR Fallback**: Tesseract.js reads up to six product-gallery images locally, then sends recognized ingredient text to the existing analyzer. |
 
 ---
 
@@ -103,7 +106,7 @@ Real e-commerce platforms (Amazon, BigBasket, Blinkit) present dynamic challenge
 FoodGuardian/
 ├── extension/                       # Chrome Manifest V3 Browser Extension
 │   ├── src/
-│   │   ├── adapters/                # Amazon, BigBasket, Blinkit, Generic adapters
+│   │   ├── adapters/                # Amazon, BigBasket, Blinkit, Flipkart, Generic adapters
 │   │   ├── api/                     # Backend API client
 │   │   ├── background/              # Background service worker & tab cache
 │   │   ├── components/              # Shadow DOM Web Components (card, panel)
@@ -232,8 +235,8 @@ A pre-configured, realistic Amazon India product page is included:
 3. Click **"Why this rating?"** to open the Shadow DOM slide-in drawer showing the 5-factor breakdown and India vs EU regulatory comparison table.
 
 #### Method B: Live E-Commerce Websites
-1. Open any packaged food item on [Amazon India](https://www.amazon.in) (e.g. search for *"Bourbon Biscuits"*, *"Maggi Noodles"*, *"Ketchup"*, or *"Peanut Butter"*).
-2. FoodGuardian automatically extracts the product title, ingredients list, and nutrition facts from the product details/specifications table.
+1. Open a packaged-food item on Amazon India or [Flipkart](https://www.flipkart.com) (e.g. *"Maggi Noodles"*).
+2. FoodGuardian extracts ingredient text from product details first, then checks packaging-gallery images locally when the page has no ingredient text.
 3. If a product loads specifications dynamically after clicking "See More", click the **FoodGuardian extension icon** in your toolbar and press **"⚡ Re-scan Current Page"**.
 
 ---

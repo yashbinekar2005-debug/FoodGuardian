@@ -28,6 +28,7 @@ export interface RawProductData {
   package_size?: string | null;
   serving_size?: string | null;
   image_url?: string | null;
+  image_urls?: string[];
 }
 
 export interface NormalizedIngredient {

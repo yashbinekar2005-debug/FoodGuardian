@@ -1,9 +1,50 @@
 import { logger } from '../utils/logger';
 import { FoodGuardianApiClient } from '../api/client';
 import { AnalyzeResponse, RawProductData } from '../types';
+import { DomExtractor } from '../extraction/dom_extractor';
 
 // Tab ID -> latest AnalyzeResponse
 const tabAnalysisCache = new Map<number, AnalyzeResponse>();
+let offscreenCreation: Promise<void> | null = null;
+
+async function ensureOcrDocument(): Promise<void> {
+  const offscreenUrl = chrome.runtime.getURL('offscreen.html');
+  const runtimeContexts = chrome.runtime as unknown as {
+    getContexts: (filter: { contextTypes: string[]; documentUrls: string[] }) => Promise<unknown[]>;
+  };
+  const contexts = await runtimeContexts.getContexts({
+    contextTypes: ['OFFSCREEN_DOCUMENT'],
+    documentUrls: [offscreenUrl]
+  });
+  if (contexts.length > 0) return;
+
+  if (!offscreenCreation) {
+    const offscreenApi = (chrome as unknown as {
+      offscreen: { createDocument: (options: { url: string; reasons: string[]; justification: string }) => Promise<void> };
+    }).offscreen;
+    offscreenCreation = offscreenApi.createDocument({
+      url: 'offscreen.html',
+      reasons: ['WORKERS'],
+      justification: 'Run local OCR on packaged-food gallery images to read ingredient labels.'
+    }).finally(() => {
+      offscreenCreation = null;
+    });
+  }
+  await offscreenCreation;
+}
+
+async function extractIngredientsFromImages(imageUrls: string[]): Promise<string | null> {
+  if (imageUrls.length === 0) return null;
+  try {
+    await ensureOcrDocument();
+    const response = await chrome.runtime.sendMessage({ type: 'FG_RUN_LOCAL_OCR', imageUrls });
+    const recognizedText = Array.isArray(response?.texts) ? response.texts.join('\n\n') : '';
+    return DomExtractor.extractIngredientsFromText(recognizedText);
+  } catch (error) {
+    logger.warn('Local package-image OCR was unavailable; continuing with page extraction:', error);
+    return null;
+  }
+}
 
 chrome.runtime.onInstalled.addListener(() => {
   logger.info('FoodGuardian Extension installed successfully.');
@@ -87,8 +128,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return;
     }
 
-    void FoodGuardianApiClient.analyzeProduct(product, message.jurisdictions)
+    void (async () => {
+      if (!product.ingredients_text) {
+        const imageUrls = [...new Set([...(product.image_urls || []), product.image_url].filter((url): url is string => Boolean(url)))];
+        product.ingredients_text = await extractIngredientsFromImages(imageUrls);
+      }
+      return FoodGuardianApiClient.analyzeProduct(product, message.jurisdictions);
+    })()
       .then((analysis) => {
+        // The API's normalized product summary omits source text. Preserve the
+        // extracted label text for the on-page Details panel.
+        (analysis.product as typeof analysis.product & { ingredients_text?: string | null }).ingredients_text = product.ingredients_text || null;
         if (tabId !== undefined) tabAnalysisCache.set(tabId, analysis);
         sendResponse({ analysis });
       })
@@ -115,7 +165,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     });
     return true; // Keep channel open for async response
   }
-  return true;
+  return false;
 });
 
 // Clean up closed tabs from cache

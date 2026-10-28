@@ -2,6 +2,7 @@ import { SiteAdapter } from './site_adapter';
 import { RawProductData, NutritionData, ProductIdentifiers } from '../types';
 import { JsonLdExtractor } from '../extraction/jsonld_extractor';
 import { DomExtractor } from '../extraction/dom_extractor';
+import { ProductImageExtractor } from '../extraction/product_images';
 
 export class GenericAdapter implements SiteAdapter {
   name = 'Generic E-Commerce Adapter';
@@ -73,6 +74,12 @@ export class GenericAdapter implements SiteAdapter {
     const ingredients = this.extractIngredients(root);
     const nutrition = this.extractNutrition(root);
 
+    const imageUrls = ProductImageExtractor.collect(
+      root,
+      '[class*="product"] img, [class*="Product"] img, [class*="gallery"] img, [class*="Gallery"] img, [data-testid*="image"] img',
+      image_url
+    );
+
     return {
       name,
       brand,
@@ -81,7 +88,8 @@ export class GenericAdapter implements SiteAdapter {
       ingredients_text: ingredients,
       nutrition,
       identifiers: this.extractIdentifiers(root),
-      image_url
+      image_url: imageUrls[0] || image_url,
+      image_urls: imageUrls
     };
   }
 

@@ -2,6 +2,7 @@ import { SiteAdapter } from './site_adapter';
 import { RawProductData, NutritionData, ProductIdentifiers } from '../types';
 import { JsonLdExtractor } from '../extraction/jsonld_extractor';
 import { DomExtractor } from '../extraction/dom_extractor';
+import { ProductImageExtractor } from '../extraction/product_images';
 
 export class BlinkitAdapter implements SiteAdapter {
   name = 'Blinkit Adapter';
@@ -38,6 +39,15 @@ export class BlinkitAdapter implements SiteAdapter {
     const ingredients = this.extractIngredients(root) || jsonLd?.ingredients_text || null;
     const nutrition = this.extractNutrition(root) || jsonLd?.nutrition || null;
 
+    const preferredImage = jsonLd?.image_url
+      || root.querySelector('img[class*="Image"], img[alt*="product"]')?.getAttribute('src')
+      || null;
+    const imageUrls = ProductImageExtractor.collect(
+      root,
+      'img[class*="Image"], img[alt*="product"], [class*="ProductImage"] img',
+      preferredImage
+    );
+
     return {
       name,
       brand,
@@ -46,7 +56,8 @@ export class BlinkitAdapter implements SiteAdapter {
       ingredients_text: ingredients,
       nutrition,
       identifiers: this.extractIdentifiers(root),
-      image_url: jsonLd?.image_url || root.querySelector('img[class*="Image"], img[alt*="product"]')?.getAttribute('src') || null
+      image_url: imageUrls[0] || preferredImage,
+      image_urls: imageUrls
     };
   }
 

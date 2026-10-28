@@ -3,22 +3,34 @@ import { NutritionData } from '../types';
 export class DomExtractor {
   static extractIngredientsFromText(text: string): string | null {
     if (!text) return null;
-    
-    // Support "Ingredients:", "Ingredients -", "Ingredients\n", "Key ingredients", "Ingredients (per 100g)" etc.
-    const pattern = /(?:key\s+|active\s+|main\s+|list\s+of\s+)?(?:ingredients?|composition|contents)\s*(?:[:\-\n\r\t]+|\s{2,}|\s*(?:\([^)]*\)\s*)?[:\-\n])\s*([\s\S]+?)(?=(?:\r?\n\s*\r?\n\s*\r?\n|allergens|allergy|nutrition|nutritional|warning|storage|legal disclaimer|directions|safety|how to use|fssai|marketed by|manufactured by|$))/i;
-    
-    const match = text.match(pattern);
-    if (match && match[1]) {
-      let cleaned = match[1].trim();
-      cleaned = cleaned.replace(/\.\s*$/, '').trim();
-      if (cleaned.length > 5 && !/^(none|na|n\/a|details?)$/i.test(cleaned)) {
-        return cleaned;
+
+    // Product pages and OCR often flatten the label and value into one text run.
+    // Normalize whitespace while preserving line breaks so wrapped package text
+    // remains readable, then stop at the next common package-information label.
+    const normalized = text.replace(/\r/g, '\n').replace(/[\t ]+/g, ' ').replace(/\n{3,}/g, '\n\n');
+    // A real label must end with punctuation or a line break. Requiring this
+    // boundary prevents prose such as "blend of ingredients to provide a great
+    // taste" from being mistaken for an ingredient declaration.
+    const label = /(?:key[ \t]+|active[ \t]+|main[ \t]+|list[ \t]+of[ \t]+)?(?:ingredients?|composition|contents)(?:[ \t]*\([^)]*\))?[ \t]*(?:[:\-–][ \t]*|\n[ \t]*)/gi;
+    const stopLabels = /\b(?:allergens?|allergy advice|may contain|contains|nutrition(?:al)? information|nutrition facts|warning|storage|legal disclaimer|directions|safety|how to use|fssai|marketed by|manufactured by|best before|customer care|mrp|net weight)\b/i;
+
+    for (const match of normalized.matchAll(label)) {
+      const start = (match.index || 0) + match[0].length;
+      let candidate = normalized.slice(start);
+      const stopAt = candidate.search(stopLabels);
+      if (stopAt >= 0) candidate = candidate.slice(0, stopAt);
+      candidate = candidate.split(/\n\s*\n/, 1)[0]
+        .replace(/^[\s:;,.\-–]+|[\s;,.\-–]+$/g, '')
+        .trim();
+      if (candidate.length > 5 && candidate.length <= 2000 && !/^(none|na|n\/a|details?|not listed)$/i.test(candidate)) {
+        return candidate;
       }
     }
     return null;
   }
 
   static scanDomForIngredients(root: Document | Element): string | null {
+    const readableText = (node: Element): string => (node as HTMLElement).innerText || node.textContent || '';
     // 1. Direct container elements by ID, class, or data attribute
     const directSelectors = [
       '#nic-ingredients-content',
@@ -32,6 +44,10 @@ export class DomExtractor {
       'div[class*="PackagedFoodDetails"]',
       'div[class*="Ingredients"]',
       'div[class*="ingredients"]',
+      'div[class*="ProductDetails"]',
+      'div[class*="product-details"]',
+      '[data-testid*="product-detail"]',
+      '[data-testid*="specification"]',
       'div[id*="ingredients"]',
       'section[class*="ingredient"]',
       '.a-section.a-spacing-medium.a-spacing-top-small',
@@ -39,8 +55,8 @@ export class DomExtractor {
     ];
     for (const sel of directSelectors) {
       const el = root.querySelector(sel);
-      if (el && el.textContent?.trim()) {
-        const text = el.textContent.trim();
+      if (el && readableText(el).trim()) {
+        const text = readableText(el).trim();
         // Check if this block contains ingredients
         if (/ingredient/i.test(text)) {
           const extracted = this.extractIngredientsFromText(text);
@@ -50,8 +66,9 @@ export class DomExtractor {
               return cleaned;
             }
           }
+          const isIngredientContainer = /ingredients/i.test(sel);
           const cleaned = text.replace(/^(?:key\s+|main\s+|active\s+)?(?:ingredients?|composition|contents)\s*[:\-\n ]*/i, '').trim();
-          if (cleaned.length > 5 && !/^(ingredients?|none|na)$/i.test(cleaned) && /[,;]/.test(cleaned)) {
+          if (isIngredientContainer && cleaned.length > 5 && !/^(ingredients?|none|na)$/i.test(cleaned)) {
             return cleaned;
           }
         }
@@ -59,13 +76,15 @@ export class DomExtractor {
     }
 
     // 2. Table rows & specification lists (Amazon, BigBasket, generic specs)
-    const tableRows = root.querySelectorAll('tr, dl, div[class*="row"], div[class*="Specification"], div[class*="ItemDetail"], li');
+    const tableRows = root.querySelectorAll('tr, dl, div[class*="row"], div[class*="Specification"], div[class*="ItemDetail"], div[class*="detail"], [data-testid*="specification"], li');
     for (const row of Array.from(tableRows)) {
-      const text = row.textContent || '';
+      const text = readableText(row);
       if (/\bingredients?\b/i.test(text)) {
-        const valCell = row.querySelector('td, dd, [class*="value"], [class*="desc"], .prodDetAttrValue, .a-expander-content');
-        if (valCell && valCell.textContent?.trim()) {
-          const val = valCell.textContent.trim();
+        const cells = Array.from(row.querySelectorAll('th, td, dt, dd, [class*="value"], [class*="desc"], .prodDetAttrValue'));
+        const labelIndex = cells.findIndex((cell) => /^(?:key\s+)?ingredients?\s*[:\-–]?$/i.test(readableText(cell).trim()));
+        const valueCell = labelIndex >= 0 ? cells[labelIndex + 1] : null;
+        if (valueCell && readableText(valueCell).trim()) {
+          const val = readableText(valueCell).trim();
           if (val.length > 5 && !/^(ingredients?|none)$/i.test(val) && /[a-z]/i.test(val)) {
             const extracted = this.extractIngredientsFromText(val) || val;
             const cleaned = extracted.replace(/^(?:key\s+|main\s+)?(?:ingredients?|composition|contents)\s*[:\-\n ]*/i, '').trim();
@@ -80,14 +99,14 @@ export class DomExtractor {
     // 3. Headings / Labels followed by sibling elements (e.g. <h4>Ingredients</h4> <p>...</p>)
     const headers = root.querySelectorAll('h2, h3, h4, h5, h6, strong, b, dt, span[class*="label"], div[class*="title"], div[class*="label"], div[class*="header"], th');
     for (const h of Array.from(headers)) {
-      const text = h.textContent?.trim() || '';
-      if (/\bingredients?\b/i.test(text) && text.length < 50) {
+        const text = readableText(h).trim();
+      if (/^(?:key\s+)?ingredients?\s*[:\-–]?$/i.test(text) && text.length < 50) {
         let next = h.nextElementSibling;
         if (!next && h.parentElement) {
           next = h.parentElement.nextElementSibling;
         }
         if (next && next.textContent?.trim()) {
-          const val = next.textContent.trim();
+          const val = readableText(next).trim();
           if (val.length > 5 && !/^(ingredients?|none)$/i.test(val)) {
             const extracted = this.extractIngredientsFromText(val) || val;
             const cleaned = extracted.replace(/^(?:key\s+|main\s+)?(?:ingredients?|composition|contents)\s*[:\-\n ]*/i, '').trim();
@@ -96,7 +115,7 @@ export class DomExtractor {
         }
         // Also check parent's next sibling
         if (h.parentElement?.nextElementSibling) {
-          const val = h.parentElement.nextElementSibling.textContent?.trim();
+          const val = readableText(h.parentElement.nextElementSibling).trim();
           if (val && val.length > 5 && !/^(ingredients?|none)$/i.test(val)) {
             const extracted = this.extractIngredientsFromText(val) || val;
             const cleaned = extracted.replace(/^(?:key\s+|main\s+)?(?:ingredients?|composition|contents)\s*[:\-\n ]*/i, '').trim();
@@ -111,7 +130,7 @@ export class DomExtractor {
       '#important-information, #importantInformation, #productDescription, #featurebullets_feature_div, #detailBullets_feature_div, #aplus, div[class*="Description"], div[class*="Details"]'
     );
     for (const block of Array.from(contentBlocks)) {
-      const text = block.textContent || '';
+      const text = readableText(block);
       if (/ingredient/i.test(text)) {
         const extracted = this.extractIngredientsFromText(text);
         if (extracted) return extracted;
@@ -122,7 +141,7 @@ export class DomExtractor {
     const elements = root.querySelectorAll('p, li, div, span');
     for (const el of Array.from(elements)) {
       if (el.children.length <= 2) {
-        const text = el.textContent || '';
+        const text = readableText(el);
         if (/(?:^|\n|\s)(?:key\s+|active\s+|main\s+)?ingredients?\s*[:\-\n ]+/i.test(text.trim())) {
           const extracted = this.extractIngredientsFromText(text);
           if (extracted) {
@@ -135,7 +154,9 @@ export class DomExtractor {
 
     // 6. Last resort: scan full body text
     try {
-      const fullText = root instanceof Document ? (root.body?.textContent || '') : root.textContent || '';
+      const fullText = root instanceof Document
+        ? (root.body?.innerText || root.body?.textContent || '')
+        : (root as HTMLElement).innerText || root.textContent || '';
       if (fullText && /ingredient/i.test(fullText)) {
         const extracted = this.extractIngredientsFromText(fullText);
         if (extracted) {

@@ -2,6 +2,10 @@
   "manifest_version": 3,
   "name": "FoodGuardian - Food Safety & Ingredient Intelligence",
   "version": "1.0.0",
+  "minimum_chrome_version": "116",
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  },
   "description": "Analyzes packaged-food products on e-commerce websites with additive decoding, nutrition analysis, and India vs EU regulatory comparisons.",
   "icons": {
     "16": "icons/icon16.png",
@@ -11,7 +15,8 @@
   "permissions": [
     "storage",
     "activeTab",
-    "scripting"
+    "scripting",
+    "offscreen"
   ],
   "host_permissions": [
     "https://*.amazon.in/*",
@@ -28,6 +33,14 @@
     "https://swiggy.com/*",
     "https://*.jiomart.com/*",
     "https://jiomart.com/*",
+    "https://*.flipkart.com/*",
+    "https://flipkart.com/*",
+    "https://*.flixcart.com/*",
+    "https://flixcart.com/*",
+    "https://*.bbassets.com/*",
+    "https://bbassets.com/*",
+    "https://*.grofers.com/*",
+    "https://grofers.com/*",
     "http://localhost/*",
     "http://127.0.0.1/*"
   ],
@@ -52,8 +65,8 @@
         "https://swiggy.com/*",
         "https://*.jiomart.com/*",
         "https://jiomart.com/*",
-        "http://localhost/*",
-        "http://127.0.0.1/*"
+        "https://*.flipkart.com/*",
+        "https://flipkart.com/*"
       ],
       "js": ["content.js"],
       "run_at": "document_idle"

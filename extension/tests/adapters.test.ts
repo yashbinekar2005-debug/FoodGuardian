@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { AmazonAdapter } from '../src/adapters/amazon_adapter';
 import { BigBasketAdapter } from '../src/adapters/bigbasket_adapter';
 import { BlinkitAdapter } from '../src/adapters/blinkit_adapter';
+import { FlipkartAdapter } from '../src/adapters/flipkart_adapter';
 import { GenericAdapter } from '../src/adapters/generic_adapter';
 import { AdapterRegistry } from '../src/adapters/adapter_registry';
 import { DomExtractor } from '../src/extraction/dom_extractor';
@@ -27,6 +28,12 @@ describe('Site Adapters URL Matching', () => {
     expect(adapter.matches('https://blinkit.com/prn/maggi-2-minute-instant-noodles/prid/12345')).toBe(true);
   });
 
+  it('FlipkartAdapter matches packaged-food product URLs', () => {
+    const adapter = new FlipkartAdapter();
+    expect(adapter.matches('https://www.flipkart.com/maggi-masala-instant-noodles/p/itm123456789')).toBe(true);
+    expect(adapter.matches('https://www.flipkart.com/search?q=maggi')).toBe(false);
+  });
+
   it('AdapterRegistry returns specific adapter or fallback', () => {
     const amazon = AdapterRegistry.getAdapterForUrl('https://www.amazon.in/dp/B07T4RNZ7Q');
     expect(amazon instanceof AmazonAdapter).toBe(true);
@@ -36,6 +43,9 @@ describe('Site Adapters URL Matching', () => {
 
     const fallback = AdapterRegistry.getAdapterForUrl('https://otherstore.example.com/product/123');
     expect(fallback instanceof GenericAdapter).toBe(true);
+
+    const flipkart = AdapterRegistry.getAdapterForUrl('https://www.flipkart.com/maggi-masala-instant-noodles/p/itm123456789');
+    expect(flipkart instanceof FlipkartAdapter).toBe(true);
   });
 });
 
@@ -57,5 +67,17 @@ describe('DomExtractor Nutrition Extraction', () => {
     const raw = 'Product Details: Ingredients: Wheat flour, sugar, palm oil, salt, INS 322.';
     const ing = DomExtractor.extractIngredientsFromText(raw);
     expect(ing).toBe('Wheat flour, sugar, palm oil, salt, INS 322');
+  });
+
+  it('does not mistake marketing copy mentioning ingredients for an ingredient label', () => {
+    const description = 'A blend of ingredients to provide a great taste and experience. Enjoy the irresistible taste of Masala Maggi.';
+    expect(DomExtractor.extractIngredientsFromText(description)).toBeNull();
+  });
+
+  it('extracts ingredients from OCR text and stops before allergen/nutrition sections', () => {
+    const ocrText = 'Nutrition Facts\nINGREDIENTS: Noodles: Refined wheat flour (maida), palm oil, salt. Tastemaker: spices, dehydrated vegetables, flavour enhancer INS 621.\nContains wheat. Nutrition Information per serve';
+    expect(DomExtractor.extractIngredientsFromText(ocrText)).toBe(
+      'Noodles: Refined wheat flour (maida), palm oil, salt. Tastemaker: spices, dehydrated vegetables, flavour enhancer INS 621'
+    );
   });
 });

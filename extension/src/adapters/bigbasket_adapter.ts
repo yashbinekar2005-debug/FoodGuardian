@@ -2,6 +2,7 @@ import { SiteAdapter } from './site_adapter';
 import { RawProductData, NutritionData, ProductIdentifiers } from '../types';
 import { JsonLdExtractor } from '../extraction/jsonld_extractor';
 import { DomExtractor } from '../extraction/dom_extractor';
+import { ProductImageExtractor } from '../extraction/product_images';
 
 export class BigBasketAdapter implements SiteAdapter {
   name = 'BigBasket Adapter';
@@ -40,6 +41,15 @@ export class BigBasketAdapter implements SiteAdapter {
     const ingredients = this.extractIngredients(root) || jsonLd?.ingredients_text || null;
     const nutrition = this.extractNutrition(root) || jsonLd?.nutrition || null;
 
+    const preferredImage = jsonLd?.image_url
+      || root.querySelector('img[class*="Image___StyledImg"], [data-qa="product-image"] img')?.getAttribute('src')
+      || null;
+    const imageUrls = ProductImageExtractor.collect(
+      root,
+      '[data-qa="product-image"] img, [class*="Image___StyledImg"], [class*="ProductImage"] img',
+      preferredImage
+    );
+
     return {
       name,
       brand,
@@ -48,7 +58,8 @@ export class BigBasketAdapter implements SiteAdapter {
       ingredients_text: ingredients,
       nutrition,
       identifiers: this.extractIdentifiers(root),
-      image_url: jsonLd?.image_url || root.querySelector('img[class*="Image___StyledImg"], [data-qa="product-image"] img')?.getAttribute('src') || null
+      image_url: imageUrls[0] || preferredImage,
+      image_urls: imageUrls
     };
   }
 

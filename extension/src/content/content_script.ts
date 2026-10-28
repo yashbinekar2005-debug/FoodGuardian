@@ -127,10 +127,12 @@ async function analyzeCurrentProduct() {
 
     currentProductDetected = true;
     currentAnalysisError = null;
-    watcher.setProductDetected(true);
+    // Keep watching while package details or gallery images may still hydrate.
+    watcher.setProductDetected(Boolean(product.ingredients_text));
 
     // Deduplicate analysis if same product and ingredients
-    const currentHash = `${product.name}|${product.brand || ''}|${product.ingredients_text || ''}`;
+    const imageHash = Array.isArray(product.image_urls) ? product.image_urls.join(',') : product.image_url || '';
+    const currentHash = `${product.name}|${product.brand || ''}|${product.ingredients_text || ''}|${imageHash}`;
     if (currentHash === lastAnalyzedHash) {
       return;
     }

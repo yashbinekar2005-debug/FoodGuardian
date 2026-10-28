@@ -2,6 +2,7 @@ import { SiteAdapter } from './site_adapter';
 import { RawProductData, NutritionData, ProductIdentifiers } from '../types';
 import { JsonLdExtractor } from '../extraction/jsonld_extractor';
 import { DomExtractor } from '../extraction/dom_extractor';
+import { ProductImageExtractor } from '../extraction/product_images';
 
 export class AmazonAdapter implements SiteAdapter {
   name = 'Amazon India Adapter';
@@ -79,6 +80,16 @@ export class AmazonAdapter implements SiteAdapter {
     const nutrition = this.extractNutrition(root);
     const identifiers = this.extractIdentifiers(root);
 
+    const preferredImage = jsonLd?.image_url
+      || root.querySelector('#landingImage, #imgBlkFront, .imgTagWrapper img')?.getAttribute('src')
+      || root.querySelector('meta[property="og:image"]')?.getAttribute('content')
+      || null;
+    const imageUrls = ProductImageExtractor.collect(
+      root,
+      '#landingImage, #imgBlkFront, #altImages img, #imageBlock img, .imgTagWrapper img',
+      preferredImage
+    );
+
     return {
       name,
       brand,
@@ -89,7 +100,8 @@ export class AmazonAdapter implements SiteAdapter {
       identifiers,
       package_size: null,
       serving_size: null,
-      image_url: jsonLd?.image_url || root.querySelector('#landingImage, #imgBlkFront, .imgTagWrapper img')?.getAttribute('src') || root.querySelector('meta[property="og:image"]')?.getAttribute('content') || null
+      image_url: imageUrls[0] || preferredImage,
+      image_urls: imageUrls
     };
   }
 

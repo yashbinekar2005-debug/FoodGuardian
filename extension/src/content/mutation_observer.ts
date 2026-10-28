@@ -54,7 +54,9 @@ export class PageMutationWatcher {
       this.observer.observe(document.body, {
         childList: true,
         subtree: true,
-        characterData: false
+        characterData: false,
+        attributes: true,
+        attributeFilter: ['src', 'srcset', 'data-src', 'data-srcset']
       });
     }
 
